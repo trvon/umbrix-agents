@@ -1,0 +1,89 @@
+# Example configuration file for Intelligent Crawler Agent
+# Copy this file and modify as needed
+
+agent:
+  name: "intelligent-crawler-agent"
+  description: "LLM-guided CTI source discovery agent"
+
+# Kafka configuration
+kafka:
+  bootstrap_servers: "localhost:9092"
+  consumer_group_id: "intelligent-crawler-group"
+  auto_offset_reset: "latest"
+  
+  # Topics to consume from
+  input_topics:
+    - "normalized.intel"
+    - "user.submissions"
+    - "feeds.discovered"
+  
+  # Topics to produce to
+  output_topics:
+    - "raw.intel.crawled"
+    - "feeds.discovered"
+
+# LLM configuration
+llm:
+  model_name: "gemini-1.5-flash-latest"
+  max_tokens: 1000
+  temperature: 0.7
+  timeout_seconds: 30
+  max_retries: 3
+
+# Search provider configuration
+search:
+  providers:
+    brave:
+      enabled: true
+      rate_limit: 100  # requests per hour
+    google_cse:
+      enabled: true
+      rate_limit: 100  # requests per day
+  
+  max_results_per_query: 20
+  max_concurrent_searches: 5
+  search_timeout_seconds: 30
+
+# Content fetching configuration
+content:
+  fetch_timeout_seconds: 30
+  max_content_size_bytes: 1048576  # 1MB
+  max_concurrent_fetches: 10
+  user_agent: "Umbrix CTI Crawler 1.0"
+  
+  # Retry configuration
+  max_retries: 3
+  retry_delay_seconds: 1.0
+  retry_backoff_factor: 2.0
+  
+  # Allowed content types
+  allowed_content_types:
+    - "text/html"
+    - "application/xhtml+xml"
+    - "text/xml"
+    - "application/xml"
+    - "application/rss+xml"
+    - "application/atom+xml"
+
+# Redis configuration
+redis:
+  url: "redis://localhost:6379"
+  database: 0
+  connection_pool_size: 10
+  socket_timeout: 30
+  health_check_interval: 30
+
+# Monitoring configuration
+monitoring:
+  metrics_port: 8080
+  metrics_path: "/metrics"
+  health_check_path: "/health"
+  readiness_check_path: "/ready"
+  
+  # Logging configuration
+  log_level: "INFO"
+  log_format: "json"
+  enable_correlation_id: true
+
+# Backend integration
+cti_backend_url: "http://localhost:8080/api"

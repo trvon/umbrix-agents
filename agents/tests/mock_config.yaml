@@ -1,0 +1,16 @@
+kafka_topics:
+  raw_intel: "raw.intel"
+  feeds_discovered: "feeds.discovered"
+
+feeds:
+  - "https://example.com/feed1.xml"
+  - "https://example.com/feed2.xml"
+
+csv:
+  - "https://example.com/data1.csv"
+
+txt:
+  - "https://example.com/file1.txt"
+
+json:
+  - "https://example.com/data1.json"

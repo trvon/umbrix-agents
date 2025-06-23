@@ -1,0 +1,64 @@
+{
+  "validation_summary": {
+    "total_criteria": 5,
+    "passed": 4,
+    "warnings": 1,
+    "critical_failures": 0,
+    "overall_status": "PASS"
+  },
+  "results_by_analyzer": {
+    "test": [
+      {
+        "criterion": "test_threat_classification_f1",
+        "target": "0.62 (approximately_equal)",
+        "actual": "0.620",
+        "meets_target": true,
+        "deviation": 0.0,
+        "severity": "critical"
+      },
+      {
+        "criterion": "test_avg_processing_latency",
+        "target": "550.0 (less_than_or_equal)",
+        "actual": "450.000",
+        "meets_target": true,
+        "deviation": 0,
+        "severity": "critical"
+      },
+      {
+        "criterion": "test_p95_latency",
+        "target": "1000.0 (less_than_or_equal)",
+        "actual": "850.000",
+        "meets_target": true,
+        "deviation": 0,
+        "severity": "warning"
+      },
+      {
+        "criterion": "test_success_rate",
+        "target": "0.9 (greater_than_or_equal)",
+        "actual": "0.900",
+        "meets_target": true,
+        "deviation": 0,
+        "severity": "critical"
+      },
+      {
+        "criterion": "test_cost_per_1k_docs",
+        "target": "1.0 (less_than_or_equal)",
+        "actual": "2.450",
+        "meets_target": false,
+        "deviation": 1.4500000000000002,
+        "severity": "warning"
+      }
+    ]
+  },
+  "critical_failures": [],
+  "warnings": [
+    {
+      "criterion": "test_cost_per_1k_docs",
+      "target": "1.0 (less_than_or_equal)",
+      "actual": "2.450",
+      "deviation": 1.4500000000000002,
+      "severity": "warning"
+    }
+  ],
+  "acceptance_criteria_met": true
+}

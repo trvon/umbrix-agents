@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Raw Intel FeedRecord",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": ["string", "null"] },
+    "description": { "type": ["string", "null"] },
+    "url": { "type": "string", "format": "uri" },
+    "source_name": { "type": ["string", "null"] },
+    "source_type": { "type": ["string", "null"] },
+    "vendor_name": { "type": ["string", "null"] },
+    "requires_payment": { "type": ["boolean", "null"] },
+    "is_security_focused": { "type": ["boolean", "null"] },
+    "published_at": { "type": ["string", "null"], "format": "date-time" },
+    "discovered_at": { "type": "string", "format": "date-time" },
+    "raw_content_type": { "type": ["string", "null"] },
+    "raw_content": { "type": ["string", "null"] },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "metadata": { 
+      "type": "object",
+      "properties": {
+        "extracted_clean_text": { "type": ["string", "null"] },
+        "extraction_quality": { "type": ["string", "null"], "enum": ["excellent", "good", "fair", "poor", "very_poor", null] },
+        "extraction_method": { "type": ["string", "null"] },
+        "extraction_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "extraction_metrics": { "type": ["object", "null"] },
+        "extraction_attempts": { "type": ["array", "null"] },
+        "classified_page_type": { "type": ["string", "null"] }
+      }
+    },
+    "record_type": { "type": "string", "enum": ["raw", "normalized", "enriched"] },
+    "schema_version": { "type": "string" },
+    "data": { 
+      "type": ["object", "null"],
+      "properties": {
+        "original_feed_entry": { "type": ["object", "null"] },
+        "enrichment_results": { "type": ["object", "null"] },
+        "normalization_results": { "type": ["object", "null"] },
+        "graph_entities": { "type": ["array", "null"] }
+      }
+    }
+  },
+  "required": ["id", "url", "discovered_at", "record_type", "schema_version"]
+}

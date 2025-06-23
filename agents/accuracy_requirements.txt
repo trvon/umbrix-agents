@@ -1,0 +1,44 @@
+# DSPy Accuracy Improvement Pipeline Requirements
+
+# Core DSPy framework
+dspy-ai>=2.4.0
+
+# Machine learning and optimization
+numpy>=1.21.0
+scipy>=1.7.0
+scikit-learn>=1.0.0
+
+# Data handling
+pandas>=1.3.0
+
+# Testing framework
+pytest>=6.0.0
+pytest-asyncio>=0.21.0
+
+# Visualization (optional, for reasoning chain visualization)
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Progress tracking
+tqdm>=4.62.0
+
+# Configuration and logging
+pyyaml>=6.0
+structlog>=21.0.0
+
+# Existing project dependencies (already in pyproject.toml)
+# - kafka-python
+# - redis
+# - prometheus-client
+# - dspy-ai (may need upgrade)
+
+# Note: The following are likely already installed in the project:
+# - asyncio (built-in)
+# - json (built-in)
+# - time (built-in)
+# - pathlib (built-in)
+# - typing (built-in)
+# - dataclasses (built-in Python 3.7+)
+# - statistics (built-in)
+# - hashlib (built-in)
+# - re (built-in)

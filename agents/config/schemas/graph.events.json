@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Graph Events",
+  "type": "object",
+  "properties": {
+    "event_type": { "type": "string" },
+    "payload": { "type": "object" },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["event_type", "payload", "created_at"]
+}

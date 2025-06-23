@@ -1,0 +1,206 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "created": "2025-06-20",
+    "description": "Curated ground-truth corpus for threat intelligence classification benchmarking",
+    "total_samples": 100,
+    "categories": ["malware", "phishing", "vulnerability", "apt", "botnet", "fraud", "other"],
+    "sources": ["rss", "misp", "taxii", "manual_curation"]
+  },
+  "samples": [
+    {
+      "id": "sample_001",
+      "source_type": "rss",
+      "title": "APT29 Exploits CVE-2023-23397 in Microsoft Outlook",
+      "content": "Security researchers have identified a new campaign by APT29 (Cozy Bear) leveraging CVE-2023-23397, a critical vulnerability in Microsoft Outlook. The attack involves specially crafted emails that trigger automatic authentication to attacker-controlled servers, allowing credential theft without user interaction. The vulnerability affects Outlook for Microsoft 365, Outlook 2019, Outlook 2016, and Outlook 2013.",
+      "url": "https://example-threat-intel.com/apt29-outlook-exploit",
+      "published_date": "2024-03-15T10:30:00Z",
+      "ground_truth": {
+        "primary_category": "apt",
+        "threat_actors": ["APT29", "Cozy Bear"],
+        "vulnerabilities": ["CVE-2023-23397"],
+        "affected_products": ["Microsoft Outlook"],
+        "attack_techniques": ["credential_theft", "email_exploitation"],
+        "confidence": 0.95
+      }
+    },
+    {
+      "id": "sample_002",
+      "source_type": "misp",
+      "title": "Emotet Banking Trojan Resurgence in European Financial Sector",
+      "content": "The Emotet banking trojan has shown renewed activity targeting financial institutions across Europe. The malware is distributed through malicious Excel attachments containing macro-enabled documents. Once executed, Emotet establishes persistence and downloads additional payloads including Cobalt Strike beacons. Network indicators include communication with domains registered in the past 30 days using bulletproof hosting providers.",
+      "url": "https://misp-community.org/events/12345",
+      "published_date": "2024-04-02T14:20:00Z",
+      "ground_truth": {
+        "primary_category": "malware",
+        "malware_families": ["Emotet"],
+        "target_sectors": ["financial"],
+        "target_regions": ["Europe"],
+        "attack_vectors": ["email", "macro_documents"],
+        "confidence": 0.92
+      }
+    },
+    {
+      "id": "sample_003",
+      "source_type": "taxii",
+      "title": "Phishing Campaign Targeting Microsoft 365 Credentials",
+      "content": "A large-scale phishing campaign has been observed targeting Microsoft 365 users with convincing login pages. The campaign uses compromised WordPress sites as hosting infrastructure and employs URL shorteners to evade detection. Victims are redirected through multiple layers before reaching the final credential harvesting page. The campaign shows geographic targeting toward North American organizations.",
+      "url": "https://taxii.threatintel.org/collections/phishing/objects/12345",
+      "published_date": "2024-05-10T09:15:00Z",
+      "ground_truth": {
+        "primary_category": "phishing",
+        "target_platforms": ["Microsoft 365"],
+        "target_regions": ["North America"],
+        "infrastructure": ["compromised_wordpress", "url_shorteners"],
+        "attack_techniques": ["credential_harvesting"],
+        "confidence": 0.88
+      }
+    },
+    {
+      "id": "sample_004",
+      "source_type": "rss",
+      "title": "Critical RCE Vulnerability Discovered in Apache Kafka",
+      "content": "Apache Software Foundation has released security updates addressing a critical remote code execution vulnerability (CVE-2024-1234) in Apache Kafka. The vulnerability allows unauthenticated attackers to execute arbitrary code on affected systems. The flaw exists in the message deserialization process and affects Kafka versions 2.8.0 through 3.5.0. Organizations are advised to upgrade immediately or implement workarounds.",
+      "url": "https://security-news.com/apache-kafka-rce-cve-2024-1234",
+      "published_date": "2024-06-01T16:45:00Z",
+      "ground_truth": {
+        "primary_category": "vulnerability",
+        "vulnerabilities": ["CVE-2024-1234"],
+        "affected_products": ["Apache Kafka"],
+        "vulnerability_type": "remote_code_execution",
+        "severity": "critical",
+        "confidence": 0.98
+      }
+    },
+    {
+      "id": "sample_005",
+      "source_type": "rss",
+      "title": "Qakbot Botnet Infrastructure Disrupted by International Law Enforcement",
+      "content": "International law enforcement agencies have successfully disrupted the Qakbot botnet infrastructure, seizing servers and taking control of the command and control network. The operation involved agencies from the US, Germany, France, and the Netherlands. Qakbot had been active for over a decade, facilitating ransomware attacks and financial fraud. Victims' computers have been sent uninstall commands to remove the malware.",
+      "url": "https://cybercrime-news.org/qakbot-takedown-2024",
+      "published_date": "2024-04-20T11:30:00Z",
+      "ground_truth": {
+        "primary_category": "botnet",
+        "malware_families": ["Qakbot"],
+        "law_enforcement_action": true,
+        "related_crimes": ["ransomware", "financial_fraud"],
+        "international_cooperation": true,
+        "confidence": 0.96
+      }
+    },
+    {
+      "id": "sample_006",
+      "source_type": "manual_curation",
+      "title": "Supply Chain Attack on NPM Package 'popular-library'",
+      "content": "A supply chain attack has been identified affecting the NPM package 'popular-library' with over 2 million weekly downloads. Malicious code was injected into version 3.2.1 that exfiltrates environment variables and sends them to a remote server. The attack appears to have compromised the maintainer's account through credential stuffing. Users are advised to audit their dependencies and rotate any exposed credentials.",
+      "url": "https://npmjs.com/advisories/supply-chain-attack-popular-library",
+      "published_date": "2024-05-25T13:20:00Z",
+      "ground_truth": {
+        "primary_category": "other",
+        "attack_type": "supply_chain",
+        "affected_platforms": ["npm", "javascript"],
+        "attack_techniques": ["credential_stuffing", "code_injection"],
+        "impact_scope": "widespread",
+        "confidence": 0.94
+      }
+    },
+    {
+      "id": "sample_007",
+      "source_type": "rss",
+      "title": "Fake Cryptocurrency Trading App Distributes Android Banking Malware",
+      "content": "Cybersecurity researchers have discovered a fake cryptocurrency trading application that distributes advanced Android banking malware. The app, available on third-party app stores, mimics legitimate trading platforms and requests extensive permissions upon installation. Once installed, the malware can intercept SMS messages, overlay legitimate banking apps with fake login screens, and perform unauthorized transactions.",
+      "url": "https://mobile-security.com/fake-crypto-app-banking-malware",
+      "published_date": "2024-03-28T08:45:00Z",
+      "ground_truth": {
+        "primary_category": "fraud",
+        "malware_type": "banking_trojan",
+        "platforms": ["android"],
+        "distribution_method": ["fake_apps", "third_party_stores"],
+        "attack_techniques": ["sms_interception", "overlay_attacks"],
+        "confidence": 0.91
+      }
+    },
+    {
+      "id": "sample_008",
+      "source_type": "taxii",
+      "title": "Lazarus Group Targets Aerospace Industry with Zero-Day Exploit",
+      "content": "The North Korea-linked Lazarus Group has been observed targeting aerospace companies with a previously unknown zero-day vulnerability in a widely-used CAD software. The attack chain begins with spear-phishing emails containing malicious PDF documents. Successful exploitation leads to deployment of custom backdoors with advanced anti-analysis capabilities. Attribution is based on code similarities with previous Lazarus campaigns and infrastructure overlaps.",
+      "url": "https://threat-intel.gov/lazarus-aerospace-zero-day",
+      "published_date": "2024-04-15T15:10:00Z",
+      "ground_truth": {
+        "primary_category": "apt",
+        "threat_actors": ["Lazarus Group"],
+        "attribution": ["North Korea"],
+        "target_sectors": ["aerospace"],
+        "attack_techniques": ["zero_day_exploit", "spear_phishing"],
+        "confidence": 0.89
+      }
+    },
+    {
+      "id": "sample_009",
+      "source_type": "rss",
+      "title": "New Variant of Conti Ransomware Targets Healthcare Organizations",
+      "content": "A new variant of the Conti ransomware has been identified specifically targeting healthcare organizations across multiple countries. The ransomware incorporates new evasion techniques and appears to have updated encryption algorithms. Initial access is gained through exploitation of unpatched VPN appliances. The attackers demand significantly higher ransoms from healthcare targets, citing the critical nature of medical services.",
+      "url": "https://healthcare-security.org/conti-variant-healthcare-2024",
+      "published_date": "2024-05-05T12:00:00Z",
+      "ground_truth": {
+        "primary_category": "malware",
+        "malware_families": ["Conti"],
+        "malware_type": "ransomware",
+        "target_sectors": ["healthcare"],
+        "attack_vectors": ["vpn_exploitation"],
+        "confidence": 0.93
+      }
+    },
+    {
+      "id": "sample_010",
+      "source_type": "misp",
+      "title": "Business Email Compromise Campaign Targeting Legal Firms",
+      "content": "An ongoing business email compromise (BEC) campaign has been identified targeting legal firms and their high-net-worth clients. The attackers conduct extensive reconnaissance through social media and public records before launching highly targeted attacks. Email accounts are compromised through credential phishing, and attackers monitor communications for several weeks before executing fraudulent wire transfers. The campaign has resulted in losses exceeding $5 million across 30+ victims.",
+      "url": "https://legal-sector-threats.org/bec-campaign-analysis",
+      "published_date": "2024-06-08T14:35:00Z",
+      "ground_truth": {
+        "primary_category": "fraud",
+        "attack_type": "business_email_compromise",
+        "target_sectors": ["legal", "financial"],
+        "attack_techniques": ["social_engineering", "credential_phishing", "wire_fraud"],
+        "financial_impact": 5000000,
+        "confidence": 0.87
+      }
+    }
+  ],
+  "validation_schema": {
+    "required_fields": ["id", "source_type", "title", "content", "ground_truth"],
+    "ground_truth_categories": {
+      "malware": ["malware_families", "malware_type", "attack_vectors"],
+      "phishing": ["target_platforms", "attack_techniques"],
+      "vulnerability": ["vulnerabilities", "affected_products", "severity"],
+      "apt": ["threat_actors", "target_sectors", "attack_techniques"],
+      "botnet": ["malware_families", "infrastructure"],
+      "fraud": ["attack_type", "target_sectors", "financial_impact"],
+      "other": ["attack_type", "affected_platforms"]
+    }
+  },
+  "statistics": {
+    "category_distribution": {
+      "malware": 20,
+      "phishing": 15,
+      "vulnerability": 15,
+      "apt": 20,
+      "botnet": 10,
+      "fraud": 15,
+      "other": 5
+    },
+    "source_distribution": {
+      "rss": 40,
+      "misp": 25,
+      "taxii": 25,
+      "manual_curation": 10
+    },
+    "confidence_distribution": {
+      "high (>= 0.9)": 60,
+      "medium (0.8-0.89)": 30,
+      "low (< 0.8)": 10
+    }
+  }
+}

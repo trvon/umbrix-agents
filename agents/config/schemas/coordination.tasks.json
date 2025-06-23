@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Coordination Tasks Message",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for the task"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "feed_discovery",
+        "content_collection",
+        "data_enrichment",
+        "graph_ingestion",
+        "intelligent_crawling",
+        "indicator_analysis",
+        "threat_assessment",
+        "report_generation",
+        "system_maintenance"
+      ],
+      "description": "Type of task to be executed"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Task-specific data and parameters",
+      "properties": {
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "default": "medium"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 300
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 3
+        },
+        "target_agent": {
+          "type": "string",
+          "description": "Specific agent to handle this task (optional)"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Task-specific parameters"
+        }
+      },
+      "required": ["priority"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when task was created"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 8,
+      "maxLength": 64,
+      "description": "Correlation ID for tracking across distributed workflows"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Source system or user that created the task",
+      "default": "system"
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional deadline for task completion"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of task IDs that must complete before this task",
+      "default": []
+    }
+  },
+  "required": ["task_id", "task_type", "payload", "timestamp", "correlation_id"]
+}

@@ -1,0 +1,21 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY ./agents/collector_agent/feed_discovery_agent.py ./
+COPY ./agents/discoverers/requirements.txt ./
+COPY ./agents/config.yaml ./config.yaml
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y --auto-remove gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV AGENT_CONFIG_PATH=/app/config.yaml
+ENV PYTHONUNBUFFERED=1
+ENV METRICS_PORT=8000
+
+EXPOSE 8000
+
+CMD ["python", "feed_discovery_agent.py"] 

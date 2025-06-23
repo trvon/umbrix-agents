@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dead Letter Queue Message",
+  "type": "object",
+  "properties": {
+    "dlq_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for this DLQ entry"
+    },
+    "original_topic": {
+      "type": "string",
+      "description": "The topic where the message originally failed"
+    },
+    "original_payload": {
+      "type": "object",
+      "description": "The complete original message that failed validation"
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "validation_error": {
+          "type": "string",
+          "description": "JSON Schema validation error message"
+        },
+        "error_type": {
+          "type": "string",
+          "enum": ["schema_validation", "deserialization", "processing", "unknown"],
+          "description": "Type of error that occurred"
+        },
+        "schema_path": {
+          "type": "string",
+          "description": "Path to the schema element that failed validation"
+        },
+        "instance_path": {
+          "type": "string",
+          "description": "Path to the data element that failed validation"
+        },
+        "additional_details": {
+          "type": "object",
+          "description": "Additional error context"
+        }
+      },
+      "required": ["validation_error", "error_type"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source_agent": {
+          "type": "string",
+          "description": "Agent that produced the invalid message"
+        },
+        "agent_version": {
+          "type": "string",
+          "description": "Version of the agent"
+        },
+        "correlation_id": {
+          "type": "string",
+          "description": "Correlation ID if available from the original message"
+        },
+        "processing_stage": {
+          "type": "string",
+          "enum": ["producer", "consumer"],
+          "description": "Stage where validation failed"
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of retry attempts before DLQ"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Environment where the error occurred"
+        }
+      },
+      "required": ["source_agent", "processing_stage"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the message was added to DLQ"
+    },
+    "original_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Original message timestamp if available"
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 604800,
+      "description": "Time to live in seconds (default: 7 days)"
+    }
+  },
+  "required": [
+    "dlq_id",
+    "original_topic",
+    "original_payload",
+    "error",
+    "metadata",
+    "timestamp"
+  ]
+}

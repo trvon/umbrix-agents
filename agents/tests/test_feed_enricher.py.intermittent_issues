@@ -1,0 +1,302 @@
+"""
+Tests for DSPy-based feed enrichment functionality.
+"""
+import pytest
+import dspy
+from unittest.mock import Mock, patch, MagicMock
+from pydantic import AnyUrl
+
+# Import conftest clearing function for proper isolation
+from conftest import _clear_metrics
+
+from common_tools.feed_enricher import DSPyFeedEnricher
+from common_tools.models.feed_record import FeedRecord
+
+
+@pytest.fixture(autouse=True)
+def isolate_dspy_tests():
+    """Ensure DSPy tests are isolated from global state."""
+    _clear_metrics()
+    # Reset DSPy configuration
+    if hasattr(dspy, 'settings'):
+        dspy.settings.configure(lm=None)
+    yield
+    _clear_metrics()
+    # Clean up DSPy configuration
+    if hasattr(dspy, 'settings'):
+        dspy.settings.configure(lm=None)
+
+
+# Note: Tests in this file may require process isolation to avoid DSPy global state conflicts
+
+
+class TestDSPyFeedEnricher:
+    """Test DSPy feed enricher functionality."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Mock DSPy LM for tests
+        self.mock_lm = Mock()
+        self.mock_prediction = Mock()
+        
+        # Set up mock prediction attributes
+        self.mock_prediction.guessed_title = "Enhanced Title"
+        self.mock_prediction.guessed_description = "Enhanced description with more detail"
+        self.mock_prediction.is_security_focused = True
+        self.mock_prediction.standardized_vendor_name = "StandardVendor Inc"
+        self.mock_prediction.requires_payment = False
+        self.mock_prediction.rationale = "This appears to be security-related content"
+        
+    def test_initialization_without_lm(self):
+        """Test DSPyFeedEnricher initialization when DSPy LM is not configured."""
+        with patch('dspy.settings.lm', None):
+            
+            with patch('builtins.print') as mock_print:
+                enricher = DSPyFeedEnricher()
+                
+                # Should warn about missing LM configuration
+                mock_print.assert_called_once()
+                warning_msg = mock_print.call_args[0][0]
+                assert "Warning: DSPy LM is not configured" in warning_msg
+                
+                # Should still create the enrich_feed_item
+                assert hasattr(enricher, 'enrich_feed_item')
+    
+    def test_initialization_with_lm(self):
+        """Test DSPyFeedEnricher initialization when DSPy LM is configured."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            with patch('builtins.print') as mock_print:
+                enricher = DSPyFeedEnricher()
+                
+                # Should not print any warnings
+                mock_print.assert_not_called()
+                
+                # Should create the enrich_feed_item
+                assert hasattr(enricher, 'enrich_feed_item')
+    
+    def test_enrich_without_lm_configured(self):
+        """Test enrichment when DSPy LM is not configured."""
+        with patch('dspy.settings.lm', None):
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Test content</body></html>",
+                title="Test Title"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Should add error status to metadata
+            assert hasattr(result.metadata, 'dspy_enrichment_status')
+            assert result.metadata.dspy_enrichment_status == 'error_dspy_lm_not_configured'
+            assert result == record  # Record should be returned unchanged otherwise
+    
+    def test_enrich_without_raw_content(self):
+        """Test enrichment when record has no raw_content."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record without raw_content
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                title="Test Title"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Should add skipped status to metadata
+            assert hasattr(result.metadata, 'dspy_enrichment_status')
+            assert result.metadata.dspy_enrichment_status == 'skipped_no_raw_content'
+            assert result == record  # Record should be returned unchanged otherwise
+    
+    @patch('dspy.ChainOfThought')
+    def test_successful_enrichment(self, mock_chain_of_thought):
+        """Test successful enrichment with all fields."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            
+            # Set up mocks
+            mock_enricher = Mock()
+            mock_enricher.return_value = self.mock_prediction
+            mock_chain_of_thought.return_value = mock_enricher
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Security vulnerability found</body></html>",
+                title="Short",  # Less than 10 chars to trigger replacement
+                description="Brief desc"  # Less than 20 chars to trigger replacement
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Verify DSPy was called correctly
+            mock_enricher.assert_called_once_with(
+                raw_content=record.raw_content,
+                current_title="Short",
+                current_description="Brief desc"
+            )
+            
+            # Check enrichment metadata
+            assert hasattr(result.metadata, 'dspy_enrichment_status')
+            assert result.metadata.dspy_enrichment_status == 'success'
+            assert hasattr(result.metadata, 'dspy_enrichment')
+            enrichment_data = result.metadata.dspy_enrichment
+            
+            assert enrichment_data['guessed_title'] == "Enhanced Title"
+            assert enrichment_data['guessed_description'] == "Enhanced description with more detail"
+            assert enrichment_data['is_security_focused'] is True
+            assert enrichment_data['standardized_vendor_name'] == "StandardVendor Inc"
+            assert enrichment_data['requires_payment'] is False
+            assert enrichment_data['rationale'] == "This appears to be security-related content"
+            
+            # Check field updates - title should be updated (short original)
+            assert result.title == "Enhanced Title"
+            
+            # Check field updates - description should be updated (brief original)
+            assert result.description == "Enhanced description with more detail"
+            
+            # Check boolean field updates
+            assert result.is_security_focused is True
+            assert result.requires_payment is False
+            assert result.vendor_name == "StandardVendor Inc"
+    
+    @patch('dspy.ChainOfThought')
+    def test_enrichment_preserves_good_existing_fields(self, mock_chain_of_thought):
+        """Test that enrichment preserves good existing title and description."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            
+            # Set up mocks
+            mock_enricher = Mock()
+            mock_enricher.return_value = self.mock_prediction
+            mock_chain_of_thought.return_value = mock_enricher
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record with good existing content
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Security vulnerability found</body></html>",
+                title="This is a very good existing title that is long enough",
+                description="This is a very good existing description that is definitely longer than 20 characters"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Original title and description should be preserved
+            assert result.title == "This is a very good existing title that is long enough"
+            assert result.description == "This is a very good existing description that is definitely longer than 20 characters"
+            
+            # But other fields should still be updated
+            assert result.is_security_focused is True
+            assert result.vendor_name == "StandardVendor Inc"
+    
+    @patch('dspy.ChainOfThought')
+    def test_enrichment_without_rationale(self, mock_chain_of_thought):
+        """Test enrichment when prediction doesn't have rationale attribute."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            
+            # Set up prediction without rationale
+            prediction_without_rationale = Mock()
+            prediction_without_rationale.guessed_title = "Enhanced Title"
+            prediction_without_rationale.guessed_description = "Enhanced description"
+            prediction_without_rationale.is_security_focused = False
+            prediction_without_rationale.standardized_vendor_name = "Vendor Inc"
+            prediction_without_rationale.requires_payment = True
+            # Explicitly don't set rationale attribute
+            del prediction_without_rationale.rationale
+            
+            mock_enricher = Mock()
+            mock_enricher.return_value = prediction_without_rationale
+            mock_chain_of_thought.return_value = mock_enricher
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Content</body></html>",
+                title="Title"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Should succeed without rationale
+            assert hasattr(result.metadata, 'dspy_enrichment_status')
+            assert result.metadata.dspy_enrichment_status == 'success'
+            enrichment_data = result.metadata.dspy_enrichment
+            assert 'rationale' not in enrichment_data
+            assert enrichment_data['requires_payment'] is True
+    
+    @patch('dspy.ChainOfThought')
+    def test_enrichment_without_vendor_name(self, mock_chain_of_thought):
+        """Test enrichment when standardized_vendor_name is None or empty."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            
+            # Set up prediction with no vendor name
+            prediction = Mock()
+            prediction.guessed_title = "Enhanced Title"
+            prediction.guessed_description = "Enhanced description"
+            prediction.is_security_focused = False
+            prediction.standardized_vendor_name = None
+            prediction.requires_payment = False
+            
+            mock_enricher = Mock()
+            mock_enricher.return_value = prediction
+            mock_chain_of_thought.return_value = mock_enricher
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Content</body></html>",
+                title="Title"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # vendor_name should not be set if standardized_vendor_name is None
+            assert not hasattr(result, 'vendor_name') or result.vendor_name is None
+    
+    @patch('dspy.ChainOfThought')
+    def test_enrichment_exception_handling(self, mock_chain_of_thought):
+        """Test that exceptions during enrichment are handled gracefully."""
+        with patch('dspy.settings.lm', self.mock_lm):
+            
+            # Set up mock to raise exception
+            mock_enricher = Mock()
+            mock_enricher.side_effect = Exception("DSPy processing failed")
+            mock_chain_of_thought.return_value = mock_enricher
+            
+            enricher = DSPyFeedEnricher()
+            
+            # Create test record
+            record = FeedRecord(
+                url=AnyUrl("http://example.com/test"),
+                raw_content="<html><body>Content</body></html>",
+                title="Title"
+            )
+            
+            # Enrich the record
+            result = enricher.enrich(record)
+            
+            # Should handle error gracefully
+            assert hasattr(result.metadata, 'dspy_enrichment_status')
+            assert result.metadata.dspy_enrichment_status == 'error'
+            assert hasattr(result.metadata, 'dspy_enrichment_error')
+            assert result.metadata.dspy_enrichment_error == "DSPy processing failed"
+            
+            # Original record should be preserved
+            assert result.title == "Title"
+            assert result.raw_content == "<html><body>Content</body></html>"

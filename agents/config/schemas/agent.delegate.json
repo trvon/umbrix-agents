@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Delegation Message",
+  "type": "object",
+  "properties": {
+    "delegation_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for this delegation"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Reference to the original task"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 8,
+      "maxLength": 64,
+      "description": "Correlation ID for tracking across distributed workflows"
+    },
+    "source_agent": {
+      "type": "string",
+      "description": "Agent delegating the task"
+    },
+    "target_agent": {
+      "type": "string",
+      "description": "Agent receiving the delegation"
+    },
+    "delegation_type": {
+      "type": "string",
+      "enum": [
+        "feed_discovery",
+        "content_collection",
+        "data_enrichment",
+        "graph_ingestion",
+        "intelligent_crawling",
+        "indicator_analysis",
+        "threat_assessment",
+        "report_generation"
+      ],
+      "description": "Type of delegation"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Delegation-specific data and parameters",
+      "properties": {
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "default": "medium"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 300
+        },
+        "context": {
+          "type": "object",
+          "description": "Additional context for the delegated task"
+        }
+      },
+      "required": ["priority"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when delegation was created"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional expiration time for this delegation"
+    }
+  },
+  "required": [
+    "delegation_id",
+    "task_id",
+    "correlation_id",
+    "source_agent",
+    "target_agent",
+    "delegation_type",
+    "payload",
+    "timestamp"
+  ]
+}

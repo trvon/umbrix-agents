@@ -1,0 +1,152 @@
+# Task Schema for MasterCoordinatorAgent
+# Defines the structure for formal task delegation and orchestration
+
+task_schema:
+  type: object
+  required:
+    - task_id
+    - task_type
+    - payload
+    - timestamp
+    - correlation_id
+  properties:
+    task_id:
+      type: string
+      pattern: "^[a-zA-Z0-9_-]+$"
+      minLength: 1
+      maxLength: 64
+      description: "Unique identifier for the task"
+    
+    task_type:
+      type: string
+      enum:
+        - "feed_discovery"
+        - "content_collection"
+        - "data_enrichment"
+        - "graph_ingestion"
+        - "intelligent_crawling"
+        - "indicator_analysis"
+        - "threat_assessment"
+        - "report_generation"
+        - "system_maintenance"
+      description: "Type of task to be executed"
+    
+    payload:
+      type: object
+      description: "Task-specific data and parameters"
+      properties:
+        priority:
+          type: string
+          enum: ["low", "medium", "high", "critical"]
+          default: "medium"
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          default: 300
+        retry_count:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 3
+        target_agent:
+          type: string
+          description: "Specific agent to handle this task (optional)"
+        parameters:
+          type: object
+          description: "Task-specific parameters"
+      required:
+        - priority
+    
+    timestamp:
+      type: string
+      format: date-time
+      description: "ISO 8601 timestamp when task was created"
+    
+    correlation_id:
+      type: string
+      pattern: "^[a-zA-Z0-9_-]+$"
+      minLength: 8
+      maxLength: 64
+      description: "Correlation ID for tracking across distributed workflows"
+    
+    created_by:
+      type: string
+      description: "Source system or user that created the task"
+      default: "system"
+    
+    deadline:
+      type: string
+      format: date-time
+      description: "Optional deadline for task completion"
+    
+    dependencies:
+      type: array
+      items:
+        type: string
+      description: "List of task IDs that must complete before this task"
+      default: []
+
+# Task Result Schema - for responses and status updates
+task_result_schema:
+  type: object
+  required:
+    - task_id
+    - correlation_id
+    - status
+    - timestamp
+  properties:
+    task_id:
+      type: string
+      description: "Original task identifier"
+    
+    correlation_id:
+      type: string
+      description: "Original correlation ID"
+    
+    status:
+      type: string
+      enum: ["queued", "in_progress", "completed", "failed", "cancelled", "timeout"]
+      description: "Current task status"
+    
+    result:
+      type: object
+      description: "Task execution results (if completed)"
+    
+    error:
+      type: object
+      description: "Error details (if failed)"
+      properties:
+        error_code:
+          type: string
+        error_message:
+          type: string
+        error_details:
+          type: object
+    
+    timestamp:
+      type: string
+      format: date-time
+      description: "Timestamp of this status update"
+    
+    execution_time_ms:
+      type: integer
+      minimum: 0
+      description: "Time taken to execute task in milliseconds"
+    
+    agent_name:
+      type: string
+      description: "Agent that executed or is executing the task"
+    
+    metrics:
+      type: object
+      description: "Performance and operational metrics"
+      properties:
+        memory_used_mb:
+          type: number
+        cpu_time_ms:
+          type: number
+        messages_processed:
+          type: integer
+        external_calls:
+          type: integer

@@ -1,0 +1,1017 @@
+"""
+Comprehensive tests for rss_collector.py to improve coverage from 40% to 70%.
+
+This file focuses on testing the missing functionality:
+- Configuration loading and error handling
+- Main run() method with Kafka consumption
+- Error publishing and handling
+- Metrics initialization edge cases
+- Initialization error paths
+- Content extraction error handling
+- Schema validation and DLQ handling
+"""
+
+import pytest
+import sys
+import os
+import tempfile
+import yaml
+import json
+import time
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch, MagicMock, call
+from pydantic import ValidationError
+
+# Import conftest clearing function for proper metrics isolation
+from conftest import _clear_metrics
+
+
+@pytest.fixture(autouse=True)
+def isolated_metrics():
+    """Ensure metrics are isolated for RSS collector tests."""
+    _clear_metrics()
+    yield
+    _clear_metrics()
+
+# Import the module under test
+from collector_agent.rss_collector import (
+    RssCollectorAgent, 
+    parse_feed_date_to_datetime,
+    _get_or_create_rss_metrics,
+    AGENT_CONFIG,
+    CONFIG_PATH
+)
+from agents.common_tools.models.feed_record import FeedRecord
+from agents.common_tools.content_tools import NonArticleContentError, ContentExtractionError
+
+
+class TestConfigurationLoading:
+    """Test configuration loading and error handling."""
+    
+    def test_yaml_error_handling(self, monkeypatch):
+        """Test YAML parsing error handling."""
+        # This tests lines 58-59 (YAML error path)
+        
+        # Create invalid YAML file
+        invalid_yaml = """
+rate_limiting:
+  default_request_delay_seconds: 2.0
+  - invalid: yaml: structure
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(invalid_yaml)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            
+            with patch('builtins.print') as mock_print:
+                # Re-import to trigger configuration loading
+                import importlib
+                import collector_agent.rss_collector
+                importlib.reload(collector_agent.rss_collector)
+                
+                # Should have printed YAML error message
+                yaml_error_calls = [call for call in mock_print.call_args_list 
+                                  if "Error parsing YAML" in str(call)]
+                assert len(yaml_error_calls) > 0
+                
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_file_not_found_handling(self, monkeypatch):
+        """Test file not found error handling."""
+        # This tests lines 56-57 (FileNotFoundError path)
+        
+        monkeypatch.setenv("AGENT_CONFIG_PATH", "/nonexistent/config.yaml")
+        
+        with patch('builtins.print') as mock_print:
+            # Re-import to trigger configuration loading
+            import importlib
+            import collector_agent.rss_collector
+            importlib.reload(collector_agent.rss_collector)
+            
+            # Should have printed file not found message
+            not_found_calls = [call for call in mock_print.call_args_list 
+                              if "Config file not found" in str(call)]
+            assert len(not_found_calls) > 0
+
+
+class TestMetricsInitialization:
+    """Test metrics initialization and fallback paths."""
+    
+    @patch('prometheus_client.Counter')
+    def test_metrics_value_error_fallback(self, mock_counter):
+        """Test metrics initialization when ValueError occurs (metrics already exist)."""
+        # This tests lines 85-116 (ValueError fallback path)
+        mock_counter.side_effect = ValueError("Metric already exists")
+        
+        # Should fall back to getting from registry
+        with patch('collector_agent.rss_collector.METRICS_REGISTRY') as mock_registry:
+            mock_registry._names_to_collectors = {
+                'rss_collector_feed_fetch_total': Mock(),
+                'rss_collector_feed_fetch_errors_total': Mock(),
+                'rss_collector_entries_retrieved_total': Mock(),
+                'rss_collector_extraction_errors_total': Mock(),
+                'rss_collector_extraction_quality_total': Mock(),
+                'rss_collector_entries_published_total': Mock()
+            }
+            
+            metrics = _get_or_create_rss_metrics()
+            
+            # Should return metrics from registry
+            assert len(metrics) == 6
+            assert all(metric is not None for metric in metrics)
+    
+    @patch('prometheus_client.Counter')
+    def test_metrics_import_error_fallback(self, mock_counter):
+        """Test metrics initialization when ImportError occurs."""
+        # This tests lines 95-116 (ImportError fallback path)
+        mock_counter.side_effect = ImportError("prometheus_client not available")
+        
+        # Mock conftest import
+        with patch('collector_agent.rss_collector._Counter') as mock_stub_counter:
+            mock_stub_counter.return_value = Mock()
+            
+            # Should fall back to stub implementations
+            metrics = _get_or_create_rss_metrics()
+            
+            assert len(metrics) == 6
+            assert all(metric is not None for metric in metrics)
+
+
+class TestDateParsing:
+    """Test date parsing functionality."""
+    
+    def test_parse_feed_date_valid_iso_format(self):
+        """Test parsing valid ISO format dates."""
+        # Test various valid formats
+        test_cases = [
+            "2023-10-26T10:20:30Z",
+            "2023-10-26T10:20:30+00:00",
+            "2023-10-26T10:20:30-05:00"
+        ]
+        
+        for date_str in test_cases:
+            result = parse_feed_date_to_datetime(date_str)
+            assert result is not None
+            assert isinstance(result, datetime)
+            assert result.tzinfo is not None
+    
+    def test_parse_feed_date_invalid_format(self):
+        """Test parsing invalid date formats."""
+        # This tests lines 146-154 (ValueError handling)
+        invalid_dates = [
+            "invalid-date",
+            "2023-13-32T25:70:80Z",
+            "not a date at all"
+        ]
+        
+        for invalid_date in invalid_dates:
+            result = parse_feed_date_to_datetime(invalid_date)
+            assert result is None
+    
+    def test_parse_feed_date_empty_string(self):
+        """Test parsing empty or None date strings."""
+        # This tests lines 138-139 (empty string handling)
+        assert parse_feed_date_to_datetime("") is None
+        assert parse_feed_date_to_datetime(None) is None
+
+
+class TestRssCollectorAgentInitialization:
+    """Test RssCollectorAgent initialization scenarios."""
+    
+    @patch('collector_agent.rss_collector.KafkaConsumer')
+    @patch('collector_agent.rss_collector.KafkaProducer')
+    def test_initialization_with_kafka_consumer_error(self, mock_producer, mock_consumer):
+        """Test initialization when Kafka consumer fails."""
+        # This tests lines 323-333 (consumer init failure)
+        mock_consumer.side_effect = Exception("Kafka broker not available")
+        
+        with patch('collector_agent.rss_collector.setup_agent_logging') as mock_logging:
+            mock_logger = Mock()
+            mock_logging.return_value = mock_logger
+            
+            # Should not raise exception, should log error
+            agent = RssCollectorAgent(
+                bootstrap_servers="localhost:9092",
+                use_kafka=True
+            )
+            
+            # Should have logged consumer init failure
+            assert mock_logger.error.called
+            error_calls = [call for call in mock_logger.error.call_args_list 
+                          if "Failed to initialize Kafka consumer" in str(call)]
+            assert len(error_calls) > 0
+    
+    @patch('collector_agent.rss_collector.KafkaConsumer')
+    @patch('collector_agent.rss_collector.KafkaProducer')
+    def test_initialization_with_kafka_producer_error(self, mock_producer, mock_consumer):
+        """Test initialization when Kafka producer fails."""
+        # This tests lines 366-376 (producer init failure)
+        mock_consumer.return_value = Mock()
+        mock_producer.side_effect = Exception("Producer auth failed")
+        
+        with patch('collector_agent.rss_collector.setup_agent_logging') as mock_logging:
+            mock_logger = Mock()
+            mock_logging.return_value = mock_logger
+            
+            # Should not raise exception, should log error
+            agent = RssCollectorAgent(
+                bootstrap_servers="localhost:9092",
+                use_kafka=True
+            )
+            
+            # Should have logged producer init failure
+            assert mock_logger.error.called
+            error_calls = [call for call in mock_logger.error.call_args_list 
+                          if "Failed to initialize Kafka producer" in str(call)]
+            assert len(error_calls) > 0
+    
+    def test_initialization_with_prometheus_port(self):
+        """Test initialization with Prometheus metrics server."""
+        # This tests lines 335-343 (Prometheus server start)
+        with patch('collector_agent.rss_collector.start_http_server') as mock_start_server:
+            with patch('collector_agent.rss_collector.setup_agent_logging') as mock_logging:
+                mock_logger = Mock()
+                mock_logging.return_value = mock_logger
+                
+                agent = RssCollectorAgent(
+                    bootstrap_servers="ignored",
+                    use_kafka=False,
+                    prometheus_port=8000
+                )
+                
+                # Should have started Prometheus server
+                mock_start_server.assert_called_once()
+                
+                # Should have logged server start
+                info_calls = [call for call in mock_logger.info.call_args_list 
+                             if "Prometheus metrics server started" in str(call)]
+                assert len(info_calls) > 0
+    
+    def test_topic_placeholder_resolution(self):
+        """Test topic placeholder resolution."""
+        # This tests lines 290-299 and 300-309 (topic resolution)
+        with patch('collector_agent.rss_collector.setup_agent_logging') as mock_logging:
+            mock_logger = Mock()
+            mock_logging.return_value = mock_logger
+            
+            # Test feeds_discovered placeholder
+            agent1 = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False,
+                topic="${kafka_topics.feeds_discovered}"
+            )
+            
+            # Should have logged topic resolution warning
+            warning_calls = [call for call in mock_logger.warning.call_args_list 
+                           if "placeholder topic name" in str(call)]
+            assert len(warning_calls) > 0
+            
+            # Test raw_intel placeholder (should not happen but is handled)
+            agent2 = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False,
+                topic="${kafka_topics.raw_intel}"
+            )
+            
+            # Should have logged another warning
+            assert len(mock_logger.warning.call_args_list) > len(warning_calls)
+
+
+class TestErrorPublishing:
+    """Test error publishing functionality."""
+    
+    def test_publish_error_to_kafka_success(self):
+        """Test successful error publishing to Kafka."""
+        # This tests lines 417-431 (_publish_error_to_kafka method)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            with patch('collector_agent.rss_collector.setup_agent_metrics'):
+                agent = RssCollectorAgent(
+                    bootstrap_servers="ignored",
+                    use_kafka=False,
+                    name="test_agent"
+                )
+                
+                # Mock producer
+                mock_producer = Mock()
+                agent.producer = mock_producer
+                
+                # Ensure agent has name attribute
+                agent.name = "test_agent"
+                
+                # Test error publishing
+                with patch('time.strftime', return_value="2023-10-26T10:20:30Z"):
+                    agent._publish_error_to_kafka(
+                        error_type="TestError",
+                        source_url="http://example.com",
+                        feed_url="http://feed.example.com",
+                        severity="ERROR",
+                        details={"test": "data"}
+                    )
+                
+                # Should have sent error message
+                mock_producer.send.assert_called_once()
+                call_args = mock_producer.send.call_args
+                assert call_args[0][0] == agent.agent_errors_topic
+                error_message = call_args[0][1]
+                assert error_message["error_type"] == "TestError"
+                assert error_message["source_url"] == "http://example.com"
+                assert error_message["severity"] == "ERROR"
+    
+    def test_publish_error_to_kafka_failure(self):
+        """Test error publishing when Kafka send fails."""
+        # This tests lines 430-431 (Kafka send failure)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock producer that fails
+            mock_producer = Mock()
+            mock_producer.send.side_effect = Exception("Kafka connection lost")
+            agent.producer = mock_producer
+            
+            with patch('builtins.print') as mock_print:
+                agent._publish_error_to_kafka(
+                    error_type="TestError",
+                    source_url="http://example.com"
+                )
+                
+                # Should have printed critical error
+                critical_calls = [call for call in mock_print.call_args_list 
+                                if "CRITICAL: Failed to publish error" in str(call)]
+                assert len(critical_calls) > 0
+
+
+class TestRunMethod:
+    """Test the main run() method with Kafka consumption."""
+    
+    def test_run_with_dict_message_valid_url(self):
+        """Test run method with valid dict message containing URL."""
+        # This tests lines 433-454 (dict message processing)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer with dict message
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = {"url": "http://example.com/feed.xml"}
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock fetcher and other components
+            agent.fetcher = Mock()
+            agent.fetcher.call = Mock(return_value=[])
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            # Run for one iteration
+            with patch('builtins.print'):
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass  # Expected when iterator is exhausted
+            
+            # Should have called fetcher with the URL
+            agent.fetcher.call.assert_called_with("http://example.com/feed.xml")
+    
+    def test_run_with_dict_message_invalid_url(self):
+        """Test run method with invalid URL in dict message."""
+        # This tests lines 448-454 (invalid URL handling)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer with invalid URL
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = {"url": "not-a-valid-url"}
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock producer for error publishing
+            agent.producer = Mock()
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed invalid URL message
+            invalid_url_calls = [call for call in mock_print.call_args_list 
+                                if "Invalid URL format" in str(call)]
+            assert len(invalid_url_calls) > 0
+            
+            # Should have published error
+            agent.producer.send.assert_called()
+    
+    def test_run_with_string_message_valid_url(self):
+        """Test run method with valid string URL message."""
+        # This tests lines 463-474 (string message processing)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer with string message
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = "http://example.com/feed.xml"
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock fetcher
+            agent.fetcher = Mock()
+            agent.fetcher.call = Mock(return_value=[])
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            with patch('builtins.print'):
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have called fetcher with the URL
+            agent.fetcher.call.assert_called_with("http://example.com/feed.xml")
+    
+    def test_run_with_string_message_invalid_url(self):
+        """Test run method with invalid string URL message."""
+        # This tests lines 468-474 (invalid string URL)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer with invalid string
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = "not-a-valid-url-string"
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed invalid URL message
+            invalid_url_calls = [call for call in mock_print.call_args_list 
+                                if "not a valid URL" in str(call)]
+            assert len(invalid_url_calls) > 0
+    
+    def test_run_with_unextractable_url(self):
+        """Test run method when URL cannot be extracted."""
+        # This tests lines 483-489 (unextractable URL)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer with message that has no URL
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = {"title": "No URL here"}
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed skipping message
+            skip_calls = [call for call in mock_print.call_args_list 
+                         if "Skipping message, could not extract valid URL" in str(call)]
+            assert len(skip_calls) > 0
+    
+    def test_run_with_feed_fetch_error(self):
+        """Test run method when feed fetching fails."""
+        # This tests lines 499-507 (feed fetch error)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = "http://example.com/feed.xml"
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock fetcher that fails
+            agent.fetcher = Mock()
+            agent.fetcher.call = Mock(side_effect=Exception("Network error"))
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed error message
+            error_calls = [call for call in mock_print.call_args_list 
+                          if "Error fetching feed" in str(call)]
+            assert len(error_calls) > 0
+
+
+class TestEntryProcessing:
+    """Test individual entry processing within the run method."""
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def test_run_with_entries_missing_url(self, mock_head):
+        """Test processing entries that have no URL/link."""
+        # This tests lines 521-529 (missing URL in entry)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock consumer
+            mock_consumer = Mock()
+            mock_message = Mock()
+            mock_message.value = "http://example.com/feed.xml"
+            mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+            agent.consumer = mock_consumer
+            
+            # Mock fetcher returning entry without link
+            agent.fetcher = Mock()
+            agent.fetcher.call = Mock(return_value=[
+                {"id": "guid1", "title": "Test", "summary": "Test summary"}  # No 'link' field
+            ])
+            
+            # Mock dedupe store
+            agent.dedupe_store = Mock()
+            agent.dedupe_store.set_if_not_exists = Mock(return_value=True)
+            
+            # Mock producer
+            agent.producer = Mock()
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed skipping message
+            skip_calls = [call for call in mock_print.call_args_list 
+                         if "Skipping entry with no URL/link" in str(call)]
+            assert len(skip_calls) > 0
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def test_run_with_invalid_content_type(self, mock_head):
+        """Test processing entries with invalid content type."""
+        # This tests lines 540-543 (invalid content type)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock HEAD response with invalid content type
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'application/pdf'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+            
+            # Set up agent
+            self._setup_agent_for_entry_test(agent)
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed skipping non-HTML message
+            skip_calls = [call for call in mock_print.call_args_list 
+                         if "Skipping non-HTML/text content" in str(call)]
+            assert len(skip_calls) > 0
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def test_run_with_content_too_short(self, mock_head):
+        """Test processing entries with content too short."""
+        # This tests lines 544-548 (content too short)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock HEAD response with short content
+            mock_response = Mock()
+            mock_response.headers = {
+                'Content-Type': 'text/html',
+                'Content-Length': '50'  # Too short
+            }
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+            
+            # Set up agent
+            self._setup_agent_for_entry_test(agent)
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed skipping short content message
+            skip_calls = [call for call in mock_print.call_args_list 
+                         if "Skipping very short content" in str(call)]
+            assert len(skip_calls) > 0
+    
+    def _setup_agent_for_entry_test(self, agent):
+        """Helper method to set up agent for entry processing tests."""
+        # Mock consumer
+        mock_consumer = Mock()
+        mock_message = Mock()
+        mock_message.value = "http://example.com/feed.xml"
+        mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+        agent.consumer = mock_consumer
+        
+        # Mock fetcher returning entry with link
+        agent.fetcher = Mock()
+        agent.fetcher.call = Mock(return_value=[
+            {"id": "guid1", "link": "http://example.com/article", "title": "Test", "summary": "Test summary"}
+        ])
+        
+        # Mock dedupe store
+        agent.dedupe_store = Mock()
+        agent.dedupe_store.set_if_not_exists = Mock(return_value=True)
+        
+        # Mock producer
+        agent.producer = Mock()
+
+
+class TestExtractionErrorHandling:
+    """Test content extraction error handling scenarios."""
+    
+    def test_non_article_content_error(self):
+        """Test handling of NonArticleContentError."""
+        # This tests lines 623-631 (NonArticleContentError handling)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock extractor that raises NonArticleContentError
+            agent.extractor = Mock()
+            agent.extractor.call = Mock(side_effect=NonArticleContentError("Not an article", "login_page"))
+            
+            # Set up for processing
+            self._setup_agent_for_extraction_test(agent)
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed skipped non-article message
+            skip_calls = [call for call in mock_print.call_args_list 
+                         if "Skipped non-article content" in str(call)]
+            assert len(skip_calls) > 0
+    
+    def test_content_extraction_error(self):
+        """Test handling of ContentExtractionError."""
+        # This tests lines 632-644 (ContentExtractionError handling)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock extractor that raises ContentExtractionError
+            extraction_error = ContentExtractionError("All methods failed", [{"method": "bs4", "success": False}])
+            agent.extractor = Mock()
+            agent.extractor.call = Mock(side_effect=extraction_error)
+            
+            # Set up for processing
+            self._setup_agent_for_extraction_test(agent)
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed extraction failed message
+            fail_calls = [call for call in mock_print.call_args_list 
+                         if "All extraction methods failed" in str(call)]
+            assert len(fail_calls) > 0
+    
+    def test_general_extraction_error(self):
+        """Test handling of general extraction exceptions."""
+        # This tests lines 646-657 (general extraction error)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock extractor that raises general exception
+            agent.extractor = Mock()
+            agent.extractor.call = Mock(side_effect=Exception("Network timeout"))
+            
+            # Set up for processing
+            self._setup_agent_for_extraction_test(agent)
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed extraction error message
+            error_calls = [call for call in mock_print.call_args_list 
+                          if "Failed to extract content" in str(call)]
+            assert len(error_calls) > 0
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def _setup_agent_for_extraction_test(self, agent, mock_head=None):
+        """Helper method to set up agent for extraction tests."""
+        if mock_head:
+            # Mock HEAD response
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'text/html'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+        
+        # Mock consumer
+        mock_consumer = Mock()
+        mock_message = Mock()
+        mock_message.value = "http://example.com/feed.xml"
+        mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+        agent.consumer = mock_consumer
+        
+        # Mock fetcher
+        agent.fetcher = Mock()
+        agent.fetcher.call = Mock(return_value=[
+            {"id": "guid1", "link": "http://example.com/article", "title": "Test", "summary": "Test summary"}
+        ])
+        
+        # Mock dedupe store
+        agent.dedupe_store = Mock()
+        agent.dedupe_store.set_if_not_exists = Mock(return_value=True)
+        
+        # Mock producer
+        agent.producer = Mock()
+        
+        # Mock normalizer and enricher
+        agent.feed_normalizer = Mock()
+        agent.feed_normalizer.normalize_feed_record = Mock(side_effect=lambda x: x)
+        
+        agent.feed_enricher = Mock()
+        
+        # Mock schema validator
+        agent.schema_validator = Mock()
+        agent.schema_validator.validate = Mock()
+
+
+class TestSchemaValidationAndDLQ:
+    """Test schema validation and dead letter queue handling."""
+    
+    @patch('collector_agent.rss_collector.requests.head')  
+    def test_schema_validation_error_dlq(self, mock_head):
+        """Test schema validation error and DLQ handling."""
+        # This tests lines 694-701 (schema validation error and DLQ)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Mock HEAD response
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'text/html'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+            
+            # Mock schema validator that fails
+            agent.schema_validator = Mock()
+            from jsonschema import ValidationError as SchemaValidationError
+            agent.schema_validator.validate = Mock(side_effect=SchemaValidationError("Invalid schema"))
+            
+            # Mock validation error counter
+            agent.validation_error_counter = Mock()
+            agent.validation_error_counter.inc = Mock()
+            
+            # Set up for processing
+            self._setup_agent_for_successful_processing(agent)
+            
+            with patch('builtins.print'):
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have incremented validation error counter
+            agent.validation_error_counter.inc.assert_called_once()
+            
+            # Should have sent to DLQ
+            dlq_calls = [call for call in agent.producer.send.call_args_list 
+                        if "dead-letter" in str(call)]
+            assert len(dlq_calls) > 0
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def test_kafka_publish_error(self, mock_head):
+        """Test Kafka publish error handling."""
+        # This tests lines 708-710 (Kafka publish error)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored", 
+                use_kafka=False
+            )
+            
+            # Mock HEAD response
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'text/html'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+            
+            # Set up for processing
+            self._setup_agent_for_successful_processing(agent)
+            
+            # Mock producer that fails on send
+            agent.producer.send = Mock(side_effect=Exception("Kafka connection lost"))
+            
+            with patch('builtins.print') as mock_print:
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have printed Kafka send error
+            error_calls = [call for call in mock_print.call_args_list 
+                          if "Kafka send error" in str(call)]
+            assert len(error_calls) > 0
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    def _setup_agent_for_successful_processing(self, agent, mock_head=None):
+        """Helper method to set up agent for successful processing tests."""
+        if mock_head:
+            # Mock HEAD response
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'text/html'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+        
+        # Mock consumer
+        mock_consumer = Mock()
+        mock_message = Mock()
+        mock_message.value = "http://example.com/feed.xml"
+        mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+        agent.consumer = mock_consumer
+        
+        # Mock fetcher
+        agent.fetcher = Mock()
+        agent.fetcher.call = Mock(return_value=[
+            {"id": "guid1", "link": "http://example.com/article", "title": "Test", "summary": "Test summary"}
+        ])
+        
+        # Mock dedupe store
+        agent.dedupe_store = Mock()
+        agent.dedupe_store.set_if_not_exists = Mock(return_value=True)
+        agent.dedupe_store.set_expiration = Mock()
+        
+        # Mock producer
+        agent.producer = Mock()
+        agent.producer.send = Mock()
+        
+        # Mock extractor
+        agent.extractor = Mock()
+        agent.extractor.call = Mock(return_value={
+            'text': 'Extracted text',
+            'raw_html': '<html>Raw HTML</html>',
+            'page_type': 'article',
+            'extraction_quality': 'good',
+            'extraction_method': 'bs4',
+            'extraction_confidence': 0.8,
+            'extraction_metrics': {},
+            'extraction_attempts': []
+        })
+        
+        # Mock normalizer
+        agent.feed_normalizer = Mock()
+        agent.feed_normalizer.normalize_feed_record = Mock(side_effect=lambda x: x)
+        
+        # Mock enricher
+        agent.feed_enricher = Mock()
+        
+        # Mock schema validator
+        agent.schema_validator = Mock()
+        agent.schema_validator.validate = Mock()
+
+
+class TestRateLimiting:
+    """Test rate limiting functionality."""
+    
+    @patch('collector_agent.rss_collector.requests.head')
+    @patch('time.sleep')
+    def test_rate_limiting_delay(self, mock_sleep, mock_head):
+        """Test rate limiting delay is applied."""
+        # This tests lines 715-717 (rate limiting)
+        with patch('collector_agent.rss_collector.setup_agent_logging'):
+            agent = RssCollectorAgent(
+                bootstrap_servers="ignored",
+                use_kafka=False
+            )
+            
+            # Set delay
+            agent.item_processing_delay = 1.0
+            
+            # Mock HEAD response
+            mock_response = Mock()
+            mock_response.headers = {'Content-Type': 'text/html'}
+            mock_response.raise_for_status = Mock()
+            mock_head.return_value = mock_response
+            
+            # Set up for processing
+            self._setup_agent_for_successful_processing(agent)
+            
+            with patch('builtins.print'):
+                try:
+                    agent.run()
+                except StopIteration:
+                    pass
+            
+            # Should have called sleep with the delay
+            mock_sleep.assert_called_with(1.0)
+    
+    def _setup_agent_for_successful_processing(self, agent):
+        """Helper method to set up agent for successful processing."""
+        # Mock consumer
+        mock_consumer = Mock()
+        mock_message = Mock()
+        mock_message.value = "http://example.com/feed.xml"
+        mock_consumer.__iter__ = Mock(return_value=iter([mock_message]))
+        agent.consumer = mock_consumer
+        
+        # Mock fetcher
+        agent.fetcher = Mock()
+        agent.fetcher.call = Mock(return_value=[
+            {"id": "guid1", "link": "http://example.com/article", "title": "Test", "summary": "Test summary"}
+        ])
+        
+        # Mock dedupe store
+        agent.dedupe_store = Mock()
+        agent.dedupe_store.set_if_not_exists = Mock(return_value=True)
+        agent.dedupe_store.set_expiration = Mock()
+        
+        # Mock producer
+        agent.producer = Mock()
+        
+        # Mock extractor
+        agent.extractor = Mock()
+        agent.extractor.call = Mock(return_value={
+            'text': 'Extracted text',
+            'raw_html': '<html>Raw HTML</html>',
+            'page_type': 'article',
+            'extraction_quality': 'good',
+            'extraction_method': 'bs4',
+            'extraction_confidence': 0.8,
+            'extraction_metrics': {},
+            'extraction_attempts': []
+        })
+        
+        # Mock normalizer
+        agent.feed_normalizer = Mock()
+        agent.feed_normalizer.normalize_feed_record = Mock(side_effect=lambda x: x)
+        
+        # Mock enricher
+        agent.feed_enricher = Mock()
+        
+        # Mock schema validator
+        agent.schema_validator = Mock()
+        agent.schema_validator.validate = Mock()

@@ -1,0 +1,103 @@
+retry_policies:
+  default:
+    max_attempts: 3
+    base_delay: 1.0
+    max_delay: 30.0
+    exponential_base: 2.0
+    jitter: true
+
+  rss_feeds:
+    max_attempts: 5
+    base_delay: 2.0
+    max_delay: 60.0
+    retry_on_status_codes:
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+
+  external_apis:
+    max_attempts: 3
+    base_delay: 1.0
+    max_delay: 15.0
+    retry_on_status_codes:
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+
+  geoip_services:
+    max_attempts: 2
+    base_delay: 0.5
+    max_delay: 5.0
+    rate_limit_per_minute: 45
+
+  # Enhanced enrichment retry policies
+  content_extraction:
+    max_attempts: 3
+    base_delay: 1.0
+    max_delay: 10.0
+    exponential_base: 2.0
+    jitter: true
+    retry_on_status_codes:
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+    retry_on_exceptions:
+      - 'requests.RequestException'
+      - 'ConnectionError'
+      - 'TimeoutError'
+    no_retry_on_exceptions:
+      - 'ValueError'
+      - 'TypeError'
+
+  feed_enrichment:
+    max_attempts: 2
+    base_delay: 0.5
+    max_delay: 5.0
+    exponential_base: 1.5
+    jitter: true
+    retry_on_exceptions:
+      - 'Exception'
+    no_retry_on_exceptions:
+      - 'ValueError'
+      - 'TypeError'
+    log_attempts: true
+    metrics_enabled: true
+
+  content_analysis:
+    max_attempts: 2
+    base_delay: 0.3
+    max_delay: 3.0
+    exponential_base: 2.0
+    jitter: false
+    retry_on_exceptions:
+      - 'Exception'
+    no_retry_on_exceptions:
+      - 'ValueError'
+      - 'TypeError'
+    log_attempts: true
+    metrics_enabled: true
+
+# Dead link detection configuration
+dead_link_detection:
+  enabled: true
+  max_consecutive_failures: 5
+  failure_window_hours: 24
+  min_failures_for_suspicious: 3
+  min_failures_for_quarantine: 5
+  min_failures_for_dead: 10
+  
+  # Retry intervals
+  healthy_check_interval_hours: 24
+  suspicious_check_interval_hours: 12
+  quarantined_check_interval_hours: 168  # Weekly
+  dead_check_interval_hours: 720  # Monthly
+  
+  # History retention
+  max_failure_history: 50
+  history_retention_days: 90

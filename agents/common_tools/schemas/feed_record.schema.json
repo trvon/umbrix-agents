@@ -1,0 +1,264 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeedRecord - Canonical Threat Intelligence Feed Record",
+  "description": "Canonical schema for all threat intelligence feed records across the Umbrix platform. This schema is used by all agents for consistent data structure and validation.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this feed record",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "title": {
+      "type": ["string", "null"],
+      "description": "Title of the feed item",
+      "maxLength": 500
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Description or summary of the feed item",
+      "maxLength": 5000
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Source URL of the feed item"
+    },
+    "source_name": {
+      "type": ["string", "null"],
+      "description": "Name of the feed source (e.g., RSS feed name, TAXII server)",
+      "maxLength": 200
+    },
+    "source_type": {
+      "type": ["string", "null"],
+      "enum": [
+        "rss",
+        "atom", 
+        "taxii",
+        "misp_feed",
+        "shodan_stream",
+        "manual",
+        "api",
+        "csv",
+        "json",
+        "xml",
+        "intelligent_crawl",
+        null
+      ],
+      "description": "Type of source where this record originated"
+    },
+    "vendor_name": {
+      "type": ["string", "null"],
+      "description": "Standardized vendor name (enriched by DSPy)",
+      "maxLength": 100
+    },
+    "requires_payment": {
+      "type": ["boolean", "null"],
+      "description": "Whether accessing this content requires payment (inferred by DSPy)"
+    },
+    "is_security_focused": {
+      "type": ["boolean", "null"],
+      "description": "Whether this content is security/threat intelligence focused (classified by DSPy)"
+    },
+    "published_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp when the content was originally published (from source)"
+    },
+    "discovered_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when our system discovered this record"
+    },
+    "raw_content_type": {
+      "type": ["string", "null"],
+      "enum": ["html", "json", "xml", "text", "pdf", "binary", null],
+      "description": "MIME type or format of the raw content"
+    },
+    "raw_content": {
+      "type": ["string", "null"],
+      "description": "Raw content snippet for processing by DSPy and other tools",
+      "maxLength": 100000
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 50
+      },
+      "uniqueItems": true,
+      "maxItems": 50,
+      "description": "Tags or categories associated with this record"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for enrichments and processing details",
+      "properties": {
+        "extraction_quality": {
+          "type": ["string", "null"],
+          "enum": ["excellent", "good", "fair", "poor", "very_poor", null],
+          "description": "Quality assessment of content extraction"
+        },
+        "extraction_method": {
+          "type": ["string", "null"],
+          "description": "Method used to extract the content"
+        },
+        "extraction_confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score for content extraction (0-1)"
+        },
+        "extraction_metrics": {
+          "type": ["object", "null"],
+          "description": "Detailed metrics from content extraction process"
+        },
+        "extraction_attempts": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object"
+          },
+          "description": "History of extraction attempts for debugging"
+        },
+        "classified_page_type": {
+          "type": ["string", "null"],
+          "description": "Classified type of the web page (e.g., blog_post, news_article, technical_report)"
+        },
+        "threat_indicators": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Extracted threat indicators (IPs, domains, hashes, etc.)"
+        },
+        "threat_actors": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Identified threat actors mentioned in the content"
+        },
+        "malware_families": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Malware families mentioned in the content"
+        },
+        "attack_techniques": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "MITRE ATT&CK techniques referenced in the content"
+        },
+        "cve_ids": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string",
+            "pattern": "^CVE-\\d{4}-\\d{4,}$"
+          },
+          "description": "CVE identifiers mentioned in the content"
+        },
+        "geographic_regions": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Geographic regions mentioned in the content"
+        },
+        "industry_sectors": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Industry sectors targeted or mentioned"
+        },
+        "confidence_score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall confidence score for the record's data quality"
+        },
+        "needs_manual_review": {
+          "type": ["boolean", "null"],
+          "description": "Flag indicating if this record requires manual review"
+        },
+        "processing_stage": {
+          "type": ["string", "null"],
+          "enum": ["discovered", "collected", "enriched", "normalized", "ingested", null],
+          "description": "Current processing stage of this record"
+        },
+        "correlation_id": {
+          "type": ["string", "null"],
+          "description": "Correlation ID for tracking this record across distributed workflows"
+        },
+        "parent_record_id": {
+          "type": ["string", "null"],
+          "description": "ID of parent record if this is derived from another record"
+        },
+        "processing_errors": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": {
+              "stage": {"type": "string"},
+              "error_type": {"type": "string"},
+              "error_message": {"type": "string"},
+              "timestamp": {"type": "string", "format": "date-time"}
+            }
+          },
+          "description": "History of processing errors for debugging"
+        }
+      },
+      "additionalProperties": true
+    },
+    "record_type": {
+      "type": "string",
+      "enum": ["raw", "enriched", "normalized", "processed"],
+      "default": "raw",
+      "description": "Processing stage type of this record"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "default": "1.0.0",
+      "description": "Version of the FeedRecord schema used"
+    },
+    "data": {
+      "type": ["object", "null"],
+      "description": "Stage-specific data payload (varies by record_type)",
+      "properties": {
+        "original_feed_entry": {
+          "type": ["object", "null"],
+          "description": "Original feed entry data for raw records"
+        },
+        "enrichment_results": {
+          "type": ["object", "null"],
+          "description": "Results from enrichment processes"
+        },
+        "normalization_results": {
+          "type": ["object", "null"],
+          "description": "Results from normalization processes"
+        },
+        "graph_entities": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object"
+          },
+          "description": "Extracted entities for graph ingestion"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "url",
+    "discovered_at",
+    "record_type",
+    "schema_version"
+  ],
+  "additionalProperties": false
+}

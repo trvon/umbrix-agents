@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Intelligent Crawler Raw Intel Message",
+  "type": "object",
+  "properties": {
+    "source_type": { "type": "string" },
+    "original_context": { "type": "object" },
+    "source_topic": { "type": "string" },
+    "queries_used": { "type": "array", "items": { "type": "string" } },
+    "search_results_summary": {
+      "type": "object",
+      "additionalProperties": { "type": "integer" }
+    },
+    "extracted_content": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "title": { "type": ["string", "null"] },
+          "content": { "type": "string" },
+          "extraction_method": { "type": ["string", "null"] },
+          "threat_indicators": { "type": "array", "items": { "type": "string" } },
+          "threat_actors": { "type": "array", "items": { "type": "string" } },
+          "malware_families": { "type": "array", "items": { "type": "string" } },
+          "attack_techniques": { "type": "array", "items": { "type": "string" } },
+          "metadata": { "type": "object" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        },
+        "required": ["url", "content", "timestamp"]
+      }
+    },
+    "processing_stats": {
+      "type": "object",
+      "properties": {
+        "queries_generated": { "type": "integer" },
+        "sources_found": { "type": "integer" },
+        "content_extracted": { "type": "integer" },
+        "processing_time_seconds": { "type": "number" }
+      },
+      "required": ["queries_generated", "sources_found", "content_extracted", "processing_time_seconds"]
+    },
+    "timestamp": { "type": "number" }
+  },
+  "required": [
+    "source_type",
+    "original_context",
+    "source_topic",
+    "queries_used",
+    "search_results_summary",
+    "extracted_content",
+    "processing_stats",
+    "timestamp"
+  ]
+}

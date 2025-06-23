@@ -1,0 +1,30 @@
+{
+  "baseline_metadata": {
+    "analyzer_type": "test_analyzer",
+    "timestamp": 1750434377.6786351,
+    "test_environment": "local_test",
+    "feeds_version": "v2.0"
+  },
+  "baseline_metrics": {
+    "f1_score": 0.62,
+    "precision": 0.65,
+    "recall": 0.59,
+    "accuracy": 0.71,
+    "avg_latency_ms": 450.0,
+    "p95_latency_ms": 850.0,
+    "p99_latency_ms": 1020.0,
+    "total_samples": 10,
+    "successful_predictions": 9,
+    "failed_predictions": 1,
+    "estimated_cost_usd": 0.0245,
+    "total_tokens": 15420,
+    "throughput_docs_per_sec": 2.22,
+    "test_duration_sec": 4.5
+  },
+  "performance_distribution": {
+    "latency_p50": 380.0,
+    "latency_p90": 720.0,
+    "latency_p95": 850.0,
+    "latency_p99": 1020.0
+  }
+}

@@ -1,0 +1,490 @@
+"""
+Additional tests for content_tools.py to achieve 85%+ coverage.
+
+This file focuses on testing the remaining uncovered code paths:
+- DSPy configuration scenarios
+- Fallback extraction paths
+- Error handling edge cases
+- Configuration loading edge cases
+"""
+
+import os
+import sys
+import tempfile
+import pytest
+from pathlib import Path
+from unittest.mock import Mock, patch, MagicMock
+from bs4 import BeautifulSoup
+
+# Import after setting up mocks
+from common_tools.content_tools import ArticleExtractorTool
+
+
+class TestDSPyConfigurationScenarios:
+    """Test various DSPy configuration scenarios."""
+    
+    def test_google_llm_configuration_success(self, monkeypatch):
+        """Test successful Google LLM configuration."""
+        # This tests lines 36-42 (Google LLM success path)
+        
+        # Create temporary config file
+        config_content = """
+dspy_settings:
+  llm_provider: "google"
+  model_name: "gemini-pro"
+  api_key_env_var: "TEST_GOOGLE_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            # Set environment variables
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            monkeypatch.setenv("TEST_GOOGLE_API_KEY", "test-api-key")
+            
+            # Mock dspy.LM and dspy.settings
+            with patch('dspy.LM') as mock_lm:
+                with patch('dspy.settings.configure') as mock_configure:
+                    mock_lm.return_value = Mock()
+                    
+                    # Re-import to trigger configuration
+                    import importlib
+                    import common_tools.content_tools
+                    importlib.reload(common_tools.content_tools)
+                    
+                    # Should have called LM with correct parameters
+                    mock_lm.assert_called_with("gemini/gemini-pro", api_key="test-api-key")
+                    mock_configure.assert_called()
+                    
+        finally:
+            # Clean up
+            os.unlink(temp_config_path)
+    
+    def test_google_llm_configuration_error(self, monkeypatch):
+        """Test Google LLM configuration when dspy.LM raises exception."""
+        # This tests lines 43-44 (Google LLM error path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "googlegenerativeai"
+  model_name: "gemini-pro"
+  api_key_env_var: "TEST_GOOGLE_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            monkeypatch.setenv("TEST_GOOGLE_API_KEY", "test-api-key")
+            
+            # Mock dspy.LM to raise exception
+            with patch('dspy.LM', side_effect=Exception("API error")):
+                with patch('builtins.print') as mock_print:
+                    # Re-import to trigger configuration
+                    import importlib
+                    import common_tools.content_tools
+                    importlib.reload(common_tools.content_tools)
+                    
+                    # Should have printed error message
+                    mock_print.assert_called()
+                    error_call = [call for call in mock_print.call_args_list 
+                                  if "Error configuring DSPy Google LLM" in str(call)]
+                    assert len(error_call) > 0
+                    
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_google_llm_no_api_key(self, monkeypatch):
+        """Test Google LLM configuration when API key is missing."""
+        # This tests lines 45-46 (missing API key path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "gemini"
+  model_name: "gemini-pro"
+  api_key_env_var: "MISSING_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            # Don't set the API key environment variable
+            
+            with patch('builtins.print') as mock_print:
+                # Re-import to trigger configuration
+                import importlib
+                import common_tools.content_tools
+                importlib.reload(common_tools.content_tools)
+                
+                # Should have printed API key missing message
+                api_key_call = [call for call in mock_print.call_args_list 
+                              if "API key" in str(call) and "not found" in str(call)]
+                assert len(api_key_call) > 0
+                
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_openai_llm_configuration_success(self, monkeypatch):
+        """Test successful OpenAI LLM configuration."""
+        # This tests lines 48-52 (OpenAI LLM success path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "openai"
+  model_name: "gpt-3.5-turbo"
+  api_key_env_var: "TEST_OPENAI_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-openai-key")
+            
+            # Mock dspy.OpenAI (which doesn't exist in current dspy version)
+            mock_openai_class = Mock()
+            mock_openai_instance = Mock()
+            mock_openai_class.return_value = mock_openai_instance
+            
+            with patch.object(__import__('dspy'), 'OpenAI', mock_openai_class, create=True):
+                with patch('dspy.settings.configure') as mock_configure:
+                    
+                    # Re-import to trigger configuration
+                    import importlib
+                    import common_tools.content_tools
+                    importlib.reload(common_tools.content_tools)
+                    
+                    # Should have called OpenAI with correct parameters
+                    mock_openai_class.assert_called_with(model="gpt-3.5-turbo", api_key="test-openai-key")
+                    mock_configure.assert_called()
+                    
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_openai_llm_configuration_error(self, monkeypatch):
+        """Test OpenAI LLM configuration when dspy.OpenAI raises exception."""
+        # This tests lines 53-54 (OpenAI LLM error path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "openai"
+  model_name: "gpt-4"
+  api_key_env_var: "TEST_OPENAI_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-openai-key")
+            
+            # Mock dspy.OpenAI to raise exception
+            mock_openai_class = Mock(side_effect=Exception("OpenAI API error"))
+            
+            with patch.object(__import__('dspy'), 'OpenAI', mock_openai_class, create=True):
+                with patch('builtins.print') as mock_print:
+                    # Re-import to trigger configuration
+                    import importlib
+                    import common_tools.content_tools
+                    importlib.reload(common_tools.content_tools)
+                    
+                    # Should have printed error message
+                    error_call = [call for call in mock_print.call_args_list 
+                                  if "Error configuring DSPy OpenAI LLM" in str(call)]
+                    assert len(error_call) > 0
+                    
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_openai_llm_no_api_key(self, monkeypatch):
+        """Test OpenAI LLM configuration when API key is missing."""
+        # This tests lines 55-56 (OpenAI missing API key path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "openai"
+  model_name: "gpt-3.5-turbo"
+  api_key_env_var: "MISSING_OPENAI_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            # Don't set the API key
+            
+            with patch('builtins.print') as mock_print:
+                # Re-import to trigger configuration
+                import importlib
+                import common_tools.content_tools
+                importlib.reload(common_tools.content_tools)
+                
+                # Should have printed API key missing message for OpenAI
+                api_key_call = [call for call in mock_print.call_args_list 
+                              if "API key not found for OpenAI" in str(call)]
+                assert len(api_key_call) > 0
+                
+        finally:
+            os.unlink(temp_config_path)
+    
+    def test_unsupported_llm_provider(self, monkeypatch):
+        """Test unsupported LLM provider configuration."""
+        # This tests lines 58-59 (unsupported provider path)
+        
+        config_content = """
+dspy_settings:
+  llm_provider: "unsupported_provider"
+  model_name: "some-model"
+  api_key_env_var: "SOME_API_KEY"
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_content)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            monkeypatch.setenv("SOME_API_KEY", "test-key")
+            
+            with patch('builtins.print') as mock_print:
+                # Re-import to trigger configuration
+                import importlib
+                import common_tools.content_tools
+                importlib.reload(common_tools.content_tools)
+                
+                # Should have printed unsupported provider message
+                unsupported_call = [call for call in mock_print.call_args_list 
+                                   if "Unsupported LLM provider" in str(call)]
+                assert len(unsupported_call) > 0
+                
+        finally:
+            os.unlink(temp_config_path)
+
+
+class TestConfigurationLoadingErrors:
+    """Test configuration loading error scenarios."""
+    
+    def test_yaml_parse_error(self, monkeypatch):
+        """Test YAML parsing error handling."""
+        # This tests lines 25-26 (YAML error path)
+        
+        # Create invalid YAML file
+        invalid_yaml = """
+dspy_settings:
+  llm_provider: "google"
+  - invalid: yaml: structure
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(invalid_yaml)
+            temp_config_path = f.name
+        
+        try:
+            monkeypatch.setenv("AGENT_CONFIG_PATH", temp_config_path)
+            
+            with patch('builtins.print') as mock_print:
+                # Re-import to trigger configuration
+                import importlib
+                import common_tools.content_tools
+                importlib.reload(common_tools.content_tools)
+                
+                # Should have printed YAML error message
+                yaml_error_call = [call for call in mock_print.call_args_list 
+                                  if "Error parsing YAML" in str(call)]
+                assert len(yaml_error_call) > 0
+                
+        finally:
+            os.unlink(temp_config_path)
+
+
+class TestFallbackExtractionPaths:
+    """Test fallback extraction scenarios."""
+    
+    def test_ultimate_fallback_extraction_with_none_soup(self):
+        """Test ultimate fallback when all extraction methods fail and soup is None."""
+        # This tests lines 331-355 (ultimate fallback path)
+        
+        html_content = "<html><body><p>Some fallback content</p></body></html>"
+        
+        # Mock availability flags to disable all extractors except the fallback
+        with patch('common_tools.content_tools.READABILITY_AVAILABLE', False):
+            with patch('common_tools.content_tools.NEWSPAPER_AVAILABLE', False):
+                # Create tool after patching availability flags
+                tool = ArticleExtractorTool()
+                # Ensure BS4 extraction returns None result instead of exception
+                with patch.object(tool, '_extract_with_bs4', return_value=None):
+                    # Mock requests.get to return our test content
+                    with patch('requests.get') as mock_get:
+                        mock_response = Mock()
+                        mock_response.text = html_content
+                        mock_response.raise_for_status = Mock()
+                        mock_get.return_value = mock_response
+                        
+                        result = tool.call("http://example.com/test")
+                        
+                        # Should have fallen back to all text extraction
+                        assert result['text'] is not None
+                        assert result['extraction_method'] == 'fallback_all_text'
+                        assert result['extraction_confidence'] == 0.1
+                        assert 'Some fallback content' in result['text']
+    
+    def test_ultimate_fallback_with_soup_none_after_recreation(self):
+        """Test ultimate fallback when soup recreation also fails."""
+        # This tests lines 340-342 (soup still None after recreation)
+        
+        html_content = "Invalid HTML that can't be parsed"
+        
+        # Mock availability flags to disable all extractors
+        with patch('common_tools.content_tools.READABILITY_AVAILABLE', False):
+            with patch('common_tools.content_tools.NEWSPAPER_AVAILABLE', False):
+                # Create tool after patching availability flags
+                tool = ArticleExtractorTool()
+                
+                # Mock BeautifulSoup to return None within the tool's call method
+                with patch('common_tools.content_tools.BeautifulSoup', return_value=None):
+                    with patch.object(tool, '_extract_with_bs4', side_effect=Exception("BS4 failed")):
+                        # Mock requests.get to return our test content
+                        with patch('requests.get') as mock_get:
+                            mock_response = Mock()
+                            mock_response.text = html_content
+                            mock_response.raise_for_status = Mock()
+                            mock_get.return_value = mock_response
+                            
+                            result = tool.call("http://example.com/test")
+                            
+                            # Should have used raw HTML as last resort
+                            assert result['text'] == html_content
+                            assert result['extraction_method'] == 'fallback_all_text'
+                            assert result['extraction_confidence'] == 0.1
+    
+    def test_error_fallback_when_ultimate_fallback_fails(self):
+        """Test error fallback when even ultimate fallback raises exception."""
+        # This tests lines 356-369 (error fallback path)
+        
+        html_content = "<html><body><p>Test content</p></body></html>"
+        
+        # Mock availability flags to disable all extractors
+        with patch('common_tools.content_tools.READABILITY_AVAILABLE', False):
+            with patch('common_tools.content_tools.NEWSPAPER_AVAILABLE', False):
+                # Create tool after patching availability flags
+                tool = ArticleExtractorTool()
+                
+                # Mock BeautifulSoup to succeed first time but fail on fallback recreation
+                call_count = 0
+                def mock_beautiful_soup(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count == 1:
+                        # First call (line 225) succeeds and returns empty soup
+                        return BeautifulSoup('', 'lxml')
+                    else:
+                        # Second call (line 335) fails in the fallback path
+                        raise Exception("Parsing error")
+                
+                with patch('common_tools.content_tools.BeautifulSoup', side_effect=mock_beautiful_soup):
+                    with patch.object(tool, '_extract_with_bs4', side_effect=Exception("BS4 failed")):
+                        # Mock requests.get to return our test content
+                        with patch('requests.get') as mock_get:
+                            mock_response = Mock()
+                            mock_response.text = html_content
+                            mock_response.raise_for_status = Mock()
+                            mock_get.return_value = mock_response
+                            
+                            result = tool.call("http://example.com/test")
+                            
+                            # Should have used error fallback
+                            assert "Extraction failed:" in result['text']
+                            assert result['extraction_method'] == 'error_fallback'
+                            assert result['extraction_confidence'] == 0.01
+                            assert result['extraction_metrics']['extraction_quality'] == 'failed'
+
+
+class TestExtractionMethodEdgeCases:
+    """Test edge cases in extraction methods."""
+    
+    def test_bs4_extraction_with_complex_html(self):
+        """Test BS4 extraction with complex HTML structures."""
+        # This may help cover some of the missing lines in extraction methods
+        
+        complex_html = """
+        <html>
+        <head><title>Test Article</title></head>
+        <body>
+            <header>Navigation</header>
+            <article>
+                <h1>Main Article Title</h1>
+                <p>This is the main content of the article.</p>
+                <p>Another paragraph with important information.</p>
+                <aside>This is sidebar content that should be ignored.</aside>
+                <footer>Footer content</footer>
+            </article>
+            <footer>Page footer</footer>
+        </body>
+        </html>
+        """
+        
+        tool = ArticleExtractorTool()
+        
+        # Mock requests.get to return our test content
+        with patch('requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.text = complex_html
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+            
+            result = tool.call("http://example.com/complex")
+            
+            # Should successfully extract the article content
+            assert result['text'] is not None
+            assert 'Main Article Title' in result['text']
+            assert 'main content of the article' in result['text']
+            assert result['extraction_confidence'] > 0
+    
+    def test_extraction_with_no_raw_html(self):
+        """Test extraction when raw_html_content is None or empty."""
+        # This may cover some edge case handling
+        
+        tool = ArticleExtractorTool()
+        
+        # Mock requests.get to return no content
+        with patch('requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.text = None
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+            
+            result = tool.call("http://example.com/empty")
+            
+            # Should handle gracefully
+            assert result['text'] is not None
+            # May fall back to "No content extracted" or similar
+    
+    def test_extraction_with_empty_string_html(self):
+        """Test extraction with empty string HTML."""
+        
+        tool = ArticleExtractorTool()
+        
+        # Mock requests.get to return empty content
+        with patch('requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.text = ""
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+            
+            result = tool.call("http://example.com/empty")
+            
+            # Should handle gracefully
+            assert result['text'] is not None

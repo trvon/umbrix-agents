@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dead Link Management - Umbrix Admin</title>
+    <style>
+        body { 
+            font-family: system-ui, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+        .header { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin-bottom: 20px; 
+        }
+        .stat-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .stat-value { 
+            font-size: 2em; 
+            font-weight: bold; 
+            color: #333; 
+        }
+        .stat-label { 
+            color: #666; 
+            margin-top: 5px; 
+        }
+        .status-healthy { color: #28a745; }
+        .status-suspicious { color: #ffc107; }
+        .status-quarantined { color: #fd7e14; }
+        .status-dead { color: #dc3545; }
+        .table-container { 
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            overflow: hidden; 
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        th, td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #eee; 
+        }
+        th { 
+            background: #f8f9fa; 
+            font-weight: 600; 
+        }
+        .health-bar { 
+            width: 100%; 
+            height: 8px; 
+            background: #e9ecef; 
+            border-radius: 4px; 
+            overflow: hidden; 
+        }
+        .health-fill { 
+            height: 100%; 
+            transition: width 0.3s ease; 
+        }
+        .btn { 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block; 
+            margin-right: 8px;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .actions { 
+            margin: 20px 0; 
+        }
+        .loading { 
+            text-align: center; 
+            padding: 40px; 
+            color: #666; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            padding: 10px; 
+            border-radius: 4px; 
+            margin: 10px 0; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Dead Link Management Dashboard</h1>
+            <p>Monitor and manage RSS feed health and dead link detection</p>
+            <div id="connectionStatus" class="error" style="display: none;">
+                Backend API connection required. Please ensure the backend server is running with dead link management endpoints.
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="loading">Loading statistics...</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+            <button class="btn btn-primary" onclick="refreshData()">Refresh Data</button>
+            <button class="btn btn-success" onclick="testSelectedUrls()">Test Selected URLs</button>
+            <button class="btn btn-warning" onclick="bulkOverride(true)">Enable Selected</button>
+            <button class="btn btn-danger" onclick="bulkOverride(false)">Disable Selected</button>
+            <button class="btn btn-primary" onclick="exportData()">Export CSV</button>
+        </div>
+
+        <!-- Links Table -->
+        <div class="table-container">
+            <table id="linksTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                        <th>URL</th>
+                        <th>Status</th>
+                        <th>Health Score</th>
+                        <th>Failures</th>
+                        <th>Last Checked</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="linksTableBody">
+                    <tr>
+                        <td colspan="7" class="loading">Loading links...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Dead Link Management API Client
+        class DeadLinkAPI {
+            constructor(baseUrl = '/api/admin/deadlinks') {
+                this.baseUrl = baseUrl;
+            }
+
+            async request(endpoint, options = {}) {
+                const url = `${this.baseUrl}${endpoint}`;
+                const config = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Add authentication headers here
+                        ...options.headers
+                    },
+                    ...options
+                };
+
+                try {
+                    const response = await fetch(url, config);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error('API request failed:', error);
+                    throw error;
+                }
+            }
+
+            async getStats() {
+                return this.request('/stats');
+            }
+
+            async listLinks(params = {}) {
+                const query = new URLSearchParams(params).toString();
+                return this.request(`/list${query ? '?' + query : ''}`);
+            }
+
+            async overrideUrl(url, enabled, notes = '') {
+                return this.request(`/${encodeURIComponent(url)}/override`, {
+                    method: 'POST',
+                    body: JSON.stringify({ enabled, notes })
+                });
+            }
+
+            async bulkOverride(urls, enabled, notes = '') {
+                return this.request('/bulk-override', {
+                    method: 'POST',
+                    body: JSON.stringify({ urls, enabled, notes })
+                });
+            }
+
+            async testUrl(url) {
+                return this.request('/test-url', {
+                    method: 'POST',
+                    body: JSON.stringify({ url })
+                });
+            }
+
+            async exportData(format = 'csv') {
+                return this.request(`/export?format=${format}`);
+            }
+        }
+
+        // Initialize API client
+        const api = new DeadLinkAPI();
+        let currentData = null;
+        let selectedUrls = new Set();
+
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+        });
+
+        async function refreshData() {
+            try {
+                // Hide connection error
+                document.getElementById('connectionStatus').style.display = 'none';
+                
+                const [stats, links] = await Promise.all([
+                    api.getStats(),
+                    api.listLinks({ limit: 100 })
+                ]);
+
+                currentData = { stats, links };
+                updateStatsDisplay(stats);
+                updateLinksTable(links.links);
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+                
+                // Show connection error
+                document.getElementById('connectionStatus').style.display = 'block';
+                
+                // Show mock data for demonstration
+                showMockData();
+            }
+        }
+
+        function showMockData() {
+            // Mock data for demonstration when backend is not available
+            const mockStats = {
+                total_links: 42,
+                by_status: {
+                    healthy: 35,
+                    suspicious: 4,
+                    quarantined: 2,
+                    dead: 1
+                },
+                recent_failures: 3,
+                system_health: 'healthy'
+            };
+
+            const mockLinks = [
+                {
+                    url: 'https://example-rss.com/feed.xml',
+                    status: 'healthy',
+                    health_score: 0.95,
+                    consecutive_failures: 0,
+                    failure_count: 2,
+                    last_checked: Date.now() / 1000 - 3600
+                },
+                {
+                    url: 'https://suspicious-feed.com/rss',
+                    status: 'suspicious',
+                    health_score: 0.7,
+                    consecutive_failures: 2,
+                    failure_count: 5,
+                    last_checked: Date.now() / 1000 - 7200
+                },
+                {
+                    url: 'https://quarantined-site.com/feed',
+                    status: 'quarantined',
+                    health_score: 0.3,
+                    consecutive_failures: 5,
+                    failure_count: 12,
+                    last_checked: Date.now() / 1000 - 14400
+                }
+            ];
+
+            updateStatsDisplay(mockStats);
+            updateLinksTable(mockLinks);
+        }
+
+        function updateStatsDisplay(stats) {
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${stats.total_links}</div>
+                    <div class="stat-label">Total Links</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value status-healthy">${stats.by_status?.healthy || 0}</div>
+                    <div class="stat-label">Healthy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value status-suspicious">${stats.by_status?.suspicious || 0}</div>
+                    <div class="stat-label">Suspicious</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value status-quarantined">${stats.by_status?.quarantined || 0}</div>
+                    <div class="stat-label">Quarantined</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value status-dead">${stats.by_status?.dead || 0}</div>
+                    <div class="stat-label">Dead</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.recent_failures || 0}</div>
+                    <div class="stat-label">Recent Failures</div>
+                </div>
+            `;
+        }
+
+        function updateLinksTable(links) {
+            const tbody = document.getElementById('linksTableBody');
+            tbody.innerHTML = links.map(link => `
+                <tr>
+                    <td><input type="checkbox" value="${link.url}" onchange="toggleUrlSelection('${link.url}')"></td>
+                    <td title="${link.url}">${truncateUrl(link.url)}</td>
+                    <td><span class="status-${link.status}">${link.status}</span></td>
+                    <td>
+                        <div class="health-bar">
+                            <div class="health-fill" style="width: ${link.health_score * 100}%; background: ${getHealthColor(link.health_score)};"></div>
+                        </div>
+                        ${(link.health_score * 100).toFixed(1)}%
+                    </td>
+                    <td>${link.consecutive_failures} / ${link.failure_count}</td>
+                    <td>${formatDate(link.last_checked)}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="testUrl('${link.url}')" style="padding: 4px 8px; font-size: 12px;">Test</button>
+                        <button class="btn btn-warning" onclick="showOverrideDialog('${link.url}')" style="padding: 4px 8px; font-size: 12px;">Override</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function truncateUrl(url) {
+            return url.length > 50 ? url.substring(0, 47) + '...' : url;
+        }
+
+        function getHealthColor(score) {
+            if (score > 0.8) return '#28a745';
+            if (score > 0.5) return '#ffc107';
+            if (score > 0.2) return '#fd7e14';
+            return '#dc3545';
+        }
+
+        function formatDate(timestamp) {
+            return new Date(timestamp * 1000).toLocaleString();
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll.checked;
+                if (selectAll.checked) {
+                    selectedUrls.add(cb.value);
+                } else {
+                    selectedUrls.delete(cb.value);
+                }
+            });
+        }
+
+        function toggleUrlSelection(url) {
+            if (selectedUrls.has(url)) {
+                selectedUrls.delete(url);
+            } else {
+                selectedUrls.add(url);
+            }
+        }
+
+        async function testUrl(url) {
+            try {
+                const result = await api.testUrl(url);
+                alert(`Test result for ${url}:\nStatus: ${result.status_code || 'Error'}\nResponse time: ${result.response_time_ms?.toFixed(1) || 'N/A'}ms\nSuccess: ${result.success}`);
+                refreshData();
+            } catch (error) {
+                console.error('Test failed:', error);
+                alert('Test failed. Backend API may not be available.');
+            }
+        }
+
+        function showOverrideDialog(url) {
+            const enabled = confirm(`Enable URL: ${url}?\nClick OK to enable, Cancel to disable.`);
+            const notes = prompt('Enter notes for this override:') || '';
+            
+            if (notes !== null) {
+                overrideUrl(url, enabled, notes);
+            }
+        }
+
+        async function overrideUrl(url, enabled, notes) {
+            try {
+                await api.overrideUrl(url, enabled, notes);
+                alert('Override applied successfully');
+                refreshData();
+            } catch (error) {
+                console.error('Override failed:', error);
+                alert('Override failed. Backend API may not be available.');
+            }
+        }
+
+        async function bulkOverride(enabled) {
+            if (selectedUrls.size === 0) {
+                alert('Please select URLs to override');
+                return;
+            }
+
+            const notes = prompt(`Enter notes for ${enabled ? 'enabling' : 'disabling'} ${selectedUrls.size} URLs:`);
+            if (notes === null) return;
+
+            try {
+                const result = await api.bulkOverride(Array.from(selectedUrls), enabled, notes);
+                alert(`Bulk override completed:\n${result.successful} successful, ${result.failed} failed`);
+                
+                selectedUrls.clear();
+                refreshData();
+            } catch (error) {
+                console.error('Bulk override failed:', error);
+                alert('Bulk override failed. Backend API may not be available.');
+            }
+        }
+
+        async function exportData() {
+            try {
+                const result = await api.exportData('csv');
+                
+                const blob = new Blob([result.data], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `dead-links-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Export failed:', error);
+                alert('Export failed. Backend API may not be available.');
+            }
+        }
+
+        // Auto-refresh every 5 minutes when API is available
+        let autoRefreshInterval;
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                if (document.getElementById('connectionStatus').style.display === 'none') {
+                    refreshData();
+                }
+            }, 5 * 60 * 1000);
+        }
+
+        startAutoRefresh();
+    </script>
+</body>
+</html>

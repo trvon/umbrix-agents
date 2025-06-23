@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Response Message",
+  "type": "object",
+  "properties": {
+    "response_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for this response"
+    },
+    "delegation_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Reference to the original delegation"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Reference to the original task"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 8,
+      "maxLength": 64,
+      "description": "Correlation ID for tracking across distributed workflows"
+    },
+    "agent_name": {
+      "type": "string",
+      "description": "Agent that executed the task"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled", "timeout", "partial"],
+      "description": "Task execution status"
+    },
+    "result": {
+      "type": "object",
+      "description": "Task execution results (if completed)",
+      "properties": {
+        "records_processed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "records_produced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_topic": {
+          "type": "string",
+          "description": "Topic where results were published"
+        },
+        "data": {
+          "type": "object",
+          "description": "Task-specific result data"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "description": "Error details (if failed)",
+      "properties": {
+        "error_code": {
+          "type": "string"
+        },
+        "error_message": {
+          "type": "string"
+        },
+        "error_details": {
+          "type": "object"
+        },
+        "stack_trace": {
+          "type": "string"
+        }
+      },
+      "required": ["error_code", "error_message"]
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Performance and operational metrics",
+      "properties": {
+        "execution_time_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time taken to execute task in milliseconds"
+        },
+        "memory_used_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cpu_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "messages_processed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "external_api_calls": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when response was created"
+    }
+  },
+  "required": [
+    "response_id",
+    "delegation_id",
+    "task_id",
+    "correlation_id",
+    "agent_name",
+    "status",
+    "timestamp"
+  ]
+}

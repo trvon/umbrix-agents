@@ -1,0 +1,409 @@
+# RSS Feeds
+feeds:
+  - https://www.troyhunt.com/rss/
+  - https://feeds.feedburner.com/eset/blog
+  - https://feeds.feedburner.com/TheHackersNews?format=xml
+  - https://news.sophos.com/en-us/category/security-operations/feed/
+  - https://securelist.com/feed/
+  - https://grahamcluley.com/feed/
+  - https://krebsonsecurity.com/feed/
+  - https://blog.virustotal.com/feeds/posts/default
+  - https://www.upguard.com/breaches/rss.xml
+  - https://unit42.paloaltonetworks.com/feed/
+  - https://www.paloaltonetworks.com/blog/feed/
+  - https://www.tripwire.com/company/news/rss/
+  - https://posts.specterops.io/feed
+  - https://socprime.com/blog/feed/
+  - https://www.sentinelone.com/blog/feed/
+  - https://sensepost.com/rss.xml
+  - https://therecord.media/feed/
+  - https://blog.quarkslab.com/feeds/all.rss.xml
+  - https://www.virusbulletin.com/rss
+  - https://www.schneier.com/feed/atom/
+  - https://isc.sans.edu/rssfeed_full.xml
+  - https://www.usom.gov.tr/rss/tehdit.rss  # Non-English feed
+  - https://www.usom.gov.tr/rss/duyuru.rss  # Non-English feed
+  - https://www.cisecurity.org/feed/advisories
+  - https://www.nist.gov/blogs/cybersecurity-insights/rss.xml
+  - https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml
+  - https://www.cisa.gov/cybersecurity-advisories/cybersecurity-advisories.xml
+  - https://nao-sec.org/feed
+  - https://medium.com/feed/@sebdraven
+  - http://www.darknet.org.uk/feed/
+  - http://feeds.trendmicro.com/TrendMicroSimplySecurity
+  - https://research.checkpoint.com/feed/
+  - https://blogs.juniper.net/threat-research/feed/
+  - https://secpod.com/blog/feed/
+  - https://www.mcafee.com/blogs/tag/advanced-threat-research/feed/
+  - https://kaspersky.co.in/blog/tag/threat-intelligence/feed/  # Non-English feed
+  - https://www.netskope.com/blog/category/netskope-threat-research/feed/
+  - https://blog.paloaltonetworks.com/category/threat-research/feed/
+  - https://www.trellix.com/en-us/about/newsroom/rss-feeds.html
+  - https://www.fortinet.com/blog/threat-research/feed/
+  - https://www.securonix.com/resource-library/blog/feed/
+  - https://www.darkreading.com/rss.xml
+  - https://www.cshub.com/rss-feeds
+  - https://msrc.microsoft.com/blog/rss/
+  - https://www.ncsc.gov.uk/information/rss-feeds
+  - http://blog.crowdstrike.com/feed
+  - http://blog.emsisoft.com/feed/
+  - http://blog.eset.com/feed
+  - http://blog.jpcert.or.jp/atom.xml                                # JP
+  - http://blog.morphisec.com/rss.xml
+  - http://blogs.technet.com/mmpc/rss.xml
+  - http://cybersecuritynews.es/feed/                               # ES
+  - http://cyberseguridad.net/index.php?format=feed&type=rss        # ES
+  - http://feeds.feedblitz.com/alienvault-blogs
+  - http://feeds.feedblitz.com/alienvault-security-essentials
+  - http://feeds.feedburner.com/andreafortuna                        # IT
+  - http://feeds.feedburner.com/darknethackers
+  - http://feeds.feedburner.com/dragonjar/pKru                      # ES
+  - http://feeds.feedburner.com/FluProject                           # ES
+  - http://feeds.feedburner.com/PentestTools
+  - http://feeds.trendmicro.com/TrendMicroResearch
+  - http://feeds.trendmicro.com/TrendMicroSecurityAdvisories
+  - http://pax0r.com/feed/
+  - http://researchcenter.paloaltonetworks.com/feed/
+  - http://seclists.org/rss/bugtraq.rss
+  - http://thehackerway.com/feed/                                   # ES
+  - http://threatpost.com/feed
+  - http://vrt-sourcefire.blogspot.com/feeds/posts/default
+  - http://www.exploit-db.com/rss.php
+  - http://www.hackingarticles.in/feed/
+  - http://www.intezer.com/feed/
+  - http://www.kb.cert.org/vulfeed/
+  - http://www.seguridadjabali.com/feeds/posts/default              # ES
+  - http://www.seguridadyfirewall.cl/feeds/posts/default            # ES
+  - http://www.us-cert.gov/channels/bulletins.rdf
+  - http://www.us-cert.gov/current/index.rdf
+  - http://www.volexity.com/blog/?feed=rss2
+  - https://asec.ahnlab.com/en/feed/
+  - https://bellingcat.com/feed/
+  - https://blog.gigamon.com/feed/
+  - https://blog.google/threat-analysis-group/rss
+  - https://blog.qualys.com/feed/
+  - https://blogs.cisco.com/security/feed
+  - https://citizenlab.org/category/lab-news/feed/
+  - https://cybersecurity.att.com/site/blog-all-rss
+  - https://cyware.com/rss-feed/
+  - https://dragos.com/feed/
+  - https://exchange.xforce.ibmcloud.com/rss/collection?tag=advisory
+  - https://expel.io/feed/
+  - https://forensicitguy.github.io/feed.xml
+  - https://gbhackers.com/feed/
+  - https://hackerone.com/news.rss
+  - https://nakedsecurity.sophos.com/feed/
+  - https://rss.packetstormsecurity.com/files/
+  - https://securityaffairs.co/wordpress/feed
+  - https://stairwell.com/feed/atom/
+  - https://techcrunch.com/author/zack-whittaker/feed/
+  - https://thedfirreport.com/feed/
+  - https://threatpost.com/category/vulnerabilities/feed/
+  - https://www.arbornetworks.com/blog/asert/feed/
+  - https://www.blackhillsinfosec.com/feed/
+  - https://www.bleepingcomputer.com/feed/
+  - https://www.brighttalk.com/channel/7451/feed/rss
+  - https://www.certsi.es/feed/avisos-seguridad/all                  # ES
+  - https://www.cisa.gov/cybersecurity-advisories/all.xml
+  - https://www.coveware.com/blog?format=RSS
+  - https://www.crowdstrike.com/blog/feed/
+  - https://www.curatedintel.org/feeds/posts/default
+  - https://www.cybereason.com/blog/rss.xml
+  - https://www.fireeye.com/blog/threat-research/_jcr_content.feed
+  - https://www.greynoise.io/blog/rss.xml
+  - https://www.huntress.com/blog/rss.xml
+  - https://www.infosecurity-magazine.com/rss/news/
+  - https://www.maltego.com/index.xml
+  - https://www.mcafee.com/blogs/feed/
+  - https://www.proofpoint.com/rss.xml
+  - https://www.proofpoint.com/us/threat-insight-blog.xml
+  - https://www.recordedfuture.com/feed/
+  - https://www.redcanary.com/blog/feed/
+  - https://www.sans.org/webcasts/rss
+  - https://www.secureworks.com/rss?feed=blog
+  - https://www.securityweek.com/rss
+  - https://www.tarlogic.com/feed
+  - https://www.tenable.com/blog/feed
+  - https://www.trendmicro.com/rss/index.xml
+  - https://www.tripwire.com/state-of-security/feed/
+  - https://www.zdnet.com/topic/security/rss.xml
+  - https://blog.rapid7.com/rss/
+
+# CSV Feeds
+csv:
+  - https://urlhaus.abuse.ch/downloads/csv/
+  - https://mb-api.abuse.ch/api/v1/
+  - https://phishstats.info:2096/api/phishing?_size=20000
+  - https://openphish.com/feed.txt
+  - https://threatlists.intercept.sh/threatlist_24hr.csv
+  - https://feeds.honeynet.asia/SSHBruteForce.csv
+  - https://threatview.io/api/c2-ip
+  - https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv
+  - https://data.phishtank.com/data/online-valid.csv
+  - https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset
+  - https://feodotracker.abuse.ch/downloads/ipblocklist.txt
+  - https://threatfeed.akatz.org/feed.csv
+  - https://bazaar.abuse.ch/export/csv/recent/            # MalwareBazaar recent :contentReference[oaicite:0]{index=0}
+  - https://threatfox.abuse.ch/export/csv/recent/         # ThreatFox recent :contentReference[oaicite:1]{index=1}
+  - https://threatfox.abuse.ch/export/csv/urls/recent/
+  - https://threatfox.abuse.ch/export/csv/domains/recent/
+  - https://threatfox.abuse.ch/export/csv/ip-port/recent/
+  - https://threatfox.abuse.ch/export/csv/md5/recent/
+  - https://threatfox.abuse.ch/export/csv/sha256/recent/
+  - https://sslbl.abuse.ch/blacklist/sslblacklist.csv
+  - http://www.malwaredomainlist.com/mdlcsv.php
+  - https://feodotracker.abuse.ch/downloads/ipblocklist.csv        # Feodo C2 list :contentReference[oaicite:2]{index=2}
+
+# TXT Feeds
+txt:
+  - https://www.spamhaus.org/drop/drop.txt
+  - https://infosec.cert-pa.it/analyze/listdomains.txt
+  - https://infosec.cert-pa.it/analyze/listip.txt
+  - https://malware-traffic-analysis.net/IOC-files/daily/iocs.txt
+  - https://blocklist.greensnow.co/greensnow.txt                    # GreenSnow 
+  - https://www.binarydefense.com/banlist.txt                       # BinaryDefense 
+  - https://lists.blocklist.de/lists/all.txt                        # blocklist.de :contentReference[oaicite:5]{index=5}
+  - https://rules.emergingthreats.net/blockrules/compromised-ips.txt# EmergingThreats :contentReference[oaicite:6]{index=6}
+  - http://www.talosintelligence.com/documents/ip-blacklist         # Talos free list :contentReference[oaicite:7]{index=7}
+  - https://reputation.alienvault.com/reputation.generic            # AlienVault reput.
+  - https://www.botvrij.eu/data/ioclist.sha256
+  - https://www.dan.me.uk/torlist/?exit                             # Tor exits
+  - https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt  # IPsum 
+  - https://bazaar.abuse.ch/export/txt/sha256/recent/
+  - https://threatview.io/Downloads/High-Confidence-CobaltStrike-C2%20-Feeds.txt # ThreatView C2 :contentReference[oaicite:9]{index=9}
+  - https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt          # Feodo C2 recommended :contentReference[oaicite:10]{index=10}
+
+# JSON Feeds
+json:
+  - https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+  - https://www.cisa.gov/sites/default/files/feeds/ics_advisories.json
+  - https://nvd.nist.gov/feeds/json/cve/1.1/
+  - https://cveawg.mitre.org/api/cve
+  - https://urlhaus.abuse.ch/api/
+  - https://mb-api.abuse.ch/api/v1/
+  - https://threatfox-api.abuse.ch/api/v1/
+  - https://api.greynoise.io/v3/community/{ip}
+  - https://api.threatminer.org/v2/
+  - https://vulnsig.first.org/vuln-sig.json
+  - https://tria.ge/feed/json
+  - https://threatfox.abuse.ch/export/json/recent/
+  - https://threatfox.abuse.ch/export/json/urls/recent/
+  - https://threatfox.abuse.ch/export/json/domains/recent/
+  - https://threatfox.abuse.ch/export/json/ip-port/recent/
+  - https://threatfox.abuse.ch/export/json/md5/recent/
+  - https://threatfox.abuse.ch/export/json/sha256/recent/
+  - https://bazaar.abuse.ch/export/json/recent/
+  - https://urlhaus.abuse.ch/downloads/json_online/               # Live malicious URLs :contentReference[oaicite:11]{index=11}
+  - http://data.phishtank.com/data/online-valid.json               # Requires free key :contentReference[oaicite:12]{index=12}
+  - https://feodotracker.abuse.ch/downloads/ipblocklist.json       # Botnet C2 JSON :contentReference[oaicite:13]{index=13}
+  - https://www.circl.lu/doc/misp/feed-osint/manifest.json         # CIRCL OSINT manifest
+# - https://any.run/api/feed  # Requires account registration
+#  - https://www.joesandbox.com/api/sample/latest  # Requires account registration
+#  - https://threatintelligenceplatform.com/api  # Requires API key
+#  - https://cybersixgill.com/api  # Requires subscription
+
+servers:
+  - url: https://hailataxii.com/taxii/
+    collections:
+      - 3d594650-3436-4716-8deb-1030ec91a097
+    username: null        # or your basic‐auth/API key
+    password: null
+    poll_interval: 3600   # seconds between polls
+
+  - url: https://cti-taxii.mitre.org/taxii/
+  - url: https://otx.alienvault.com/taxii/discovery  # Requires OTX API key as username; password can be blank
+  - url: https://misp.cert.ssi.gouv.fr/taxii/
+  - url: https://cert.europa.eu/taxii/
+  - url: https://limo.anomali.com/api/v1/taxii2/taxii/         # guest / guest
+  - url: https://osint.digitalside.it/taxii2/                  # guest / guest
+  - url: https://api.polyswarm.network/v3/stix/taxii2/         # Paid PolySwarm
+  - url: https://api.threatconnect.com/taxii/discovery         # ThreatConnect subscription
+
+misp_feeds:
+    - index_url: https://www.misp-project.org/feeds/index.json
+      poll_interval: 3600
+
+# Global environment and secrets
+env:
+  CTI_BACKEND_URL: "${CTI_BACKEND_URL:-http://localhost:8000/api}"
+  AGENT_TOKEN_ENDPOINT_PATH: "/v1/agent/auth/token"
+  # CTI_API_KEY is now provided via Kubernetes Secret as an env var
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  GRAPH_INGESTER_TOPICS:
+    - "raw.intel"
+    - "raw.intel.taxii"
+    - "raw.intel.misp"
+
+# Agent definitions
+agents:
+  - name: "PrimaryRssCollector"
+    module: "collector_agent.rss_collector"
+    class: "RssCollectorAgent"
+    enabled: true
+    execution_mode: "continuous_loop"
+    params:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      topic: "feeds.discovered"
+      prometheus_port: 9464
+
+  - name: "RssFeedDiscoverer"
+    module: "collector_agent.rss_discovery_agent"
+    class: "RssDiscoveryAgent"
+    enabled: false  # Disabled - master coordinator handles feed seeding
+    execution_mode: "run_once"
+    params:
+      kafka_bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      topic: "feeds.discovered"
+
+  - name: "FeedSeeder"
+    module: "collector_agent.feed_seeder_agent"
+    class: "FeedSeederAgent"
+    enabled: false  # Disabled - master coordinator handles feed seeding
+    execution_mode: "run_once"
+    params:
+      kafka_bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      topic: "feeds.discovered"
+
+  - name: "MainGraphIngester"
+    module: "processing_agent.graph_ingestion_agent"
+    class: "GraphIngestionAgent"
+    enabled: true
+    execution_mode: "event_driven_kafka"
+    params:
+      topics: "${GRAPH_INGESTER_TOPICS}"
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      backend_url: "${CTI_BACKEND_URL}"
+      enrich_with_llm: false           # toggle LLM-based enrichment
+      gemini_model: "${GEMINI_MODEL_NAME}"   # override LLM model name via env
+      gemini_api_key: "${GOOGLE_API_KEY}"    # env var for API key
+
+  - name: "IndicatorContextTool"
+    module: "organizer_agent.indicator_context_agent"
+    class: "IndicatorContextRetrievalAgent"
+    enabled: true
+    execution_mode: "tool_only"
+    params:
+      backend_url: "${CTI_BACKEND_URL}"
+
+  - name: "FeedNormalizer"
+    module: "processing_agent.feed_normalizer_agent"
+    class: "FeedNormalizationAgent"
+    enabled: true
+    execution_mode: "continuous_loop"
+    params:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      input_topic: "raw.intel"
+      output_topic: "normalized.intel"
+
+  - name: "DSPyExtractor"
+    module: "common_tools.dspy_extraction_tool"
+    class: "DSPyExtractionTool"
+    enabled: true
+    execution_mode: "tool_only"
+    params: {}
+
+  - name: "IntelligentCrawler"
+    module: "discovery_agent.intelligent_crawler_agent"
+    class: "IntelligentCrawlerAgent"
+    enabled: true
+    execution_mode: "continuous_loop"
+    params:
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      gemini_api_key: "${GOOGLE_API_KEY}"
+
+orchestrators:
+  - name: "AllCollectorsGroup"
+    module: "google.adk.agents"
+    class: "ParallelAgent"
+    enabled: true
+    execution_mode: "manage_continuous"
+    params: {}
+    sub_agent_names:
+      - "PrimaryRssCollector"
+  - name: "InitialProcessingPipeline"
+    module: "google.adk.agents"
+    class: "SequentialAgent"
+    enabled: true
+    execution_mode: "run_once_pipeline"
+    params: {}
+    sub_agent_names:
+      - "MainGraphIngester"
+  # Placeholder for a master coordinator using tool-only agents
+  - name: "MasterCoordinator"
+    module: "organizer_agent.master_coordinator"
+    class: "CTIMasterCoordinatorAgent"
+    enabled: true
+    execution_mode: "continuous_loop"
+    params:
+      kafka_topic: "coordination.tasks"
+      bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+      gemini_api_key: "${GOOGLE_API_KEY}"
+      gemini_model: "${GEMINI_MODEL_NAME:-gemini-2.5-flash}"
+    sub_agent_names: []
+    tool_agent_names:
+      - "IndicatorContextTool"
+
+# New Rate Limiting Configuration
+rate_limiting:
+  default_request_delay_seconds: 2.0  # Default delay between requests for all agents
+  # Agent-specific overrides (optional)
+  rss_collector_item_delay_seconds: 1.5 # Delay after processing each RSS item
+  misp_feed_item_delay_seconds: 3.0    # Delay after fetching/processing each MISP feed item
+  taxii_object_delay_seconds: 1.0      # Delay after fetching/processing each TAXII object in a poll cycle
+  rss_discovery_page_delay_seconds: 5.0 # Delay after fetching a page during RSS discovery
+  # Per-hostname delays (more granular, can be added later if needed)
+  # hostname_specific_delays:
+  #   "some.specific.domain.com": 10.0
+  #   "another.highly.sensitive.site": 15.0
+
+# DSPy Configuration
+dspy_settings:
+  llm_provider: "gemini" # Options: "openai", "gemini", "mistral", "GoogleGenerativeAI"
+  model_name: "gemini-2.5-flash" # Override with env var GEMINI_MODEL_NAME
+  mistral_model: "mistral-medium-latest" # Mistral-specific model setting
+  gemini_model: "gemini-2.5-flash" # Gemini-specific model setting - override with GEMINI_MODEL_NAME
+  openai_model: "gpt-4-turbo-preview" # OpenAI-specific model setting - override with OPENAI_MODEL
+  api_key_env_var: "GEMINI_API_KEY" # Primary API key env var
+  temperature: 0.2
+  max_output_tokens: 2048
+  # Provider-specific settings
+  mistral_settings:
+    temperature: 0.2
+    max_tokens: 2048
+  gemini_settings:
+    temperature: 0.2
+    max_output_tokens: 2048
+  openai_settings:
+    temperature: 0.2
+    max_tokens: 2048
+
+# Kafka Topics
+kafka_topics:
+  raw_intel: "raw.intel"
+  feeds_discovered: "feeds.discovered"
+  agent_errors: "agent.errors" # New topic for agent errors
+
+# Intelligent Crawler Configuration
+crawler_agent:
+  search_providers:
+    - "brave"
+    - "google_cse" 
+    - "duckduckgo"
+  max_sources_per_query: 10
+  max_queries_per_context: 5
+  extraction_timeout: 30
+  retry_attempts: 3
+  kafka_topics_input:
+    - "enriched.intel"
+    - "user.submissions"
+    - "feeds.discovered"
+  kafka_topic_output: "raw.intel.crawled"
+  rate_limiting:
+    requests_per_minute: 60
+    delay_between_requests: 2.0
+    provider_specific_delays:
+      brave: 1.0
+      google_cse: 2.0
+      duckduckgo: 1.5
+
+# Neo4j Configuration (Example - if you have one)

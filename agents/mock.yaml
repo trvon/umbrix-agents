@@ -1,0 +1,146 @@
+# ----------------------------------------------------------------
+# 1) Namespace and prerequisites (Postgres, Neo4j, CTI Backend)
+# ----------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cti-test
+---
+# (Assuming you already have k8s YAMLs for Postgres & Neo4j in k8s/kind/)
+# kubectl apply -n cti-test -f k8s/kind/postgres.yaml
+# kubectl apply -n cti-test -f k8s/kind/neo4j.yaml
+
+# Deploy the backend (replace image tag with your local build)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cti-backend
+  namespace: cti-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: cti-backend }
+  template:
+    metadata:
+      labels: { app: cti-backend }
+    spec:
+      containers:
+      - name: backend
+        image: cti-backend:test            # ← built & loaded via `kind load docker-image`
+        env:
+          - name: DATABASE_URL
+            value: postgres://user:pass@postgres.cti-test.svc.cluster.local:5432/cti
+          - name: NEO4J_URI
+            value: bolt://neo4j.cti-test.svc.cluster.local:7687
+          - name: NEO4J_USER
+            value: neo4j
+          - name: NEO4J_PASSWORD
+            value: secret
+          - name: CTI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: cti-api-key-secret
+                key: api_key
+        ports:
+          - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cti-backend
+  namespace: cti-test
+spec:
+  type: ClusterIP
+  selector: { app: cti-backend }
+  ports:
+    - name: http
+      port: 8080
+
+# ----------------------------------------------------------------
+# 2) Rust integration‐tests Job
+# ----------------------------------------------------------------
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rust-integration-tests
+  namespace: cti-test
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-healthz
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://cti-backend.cti-test.svc.cluster.local:8080/api/v1/healthz; do
+                echo waiting for backend…; sleep 2;
+              done
+      containers:
+        - name: rust-tests
+          image: cti-backend:test
+          command: 
+            - sh
+            - -c
+            - |
+              cd /app/cti_backend && \
+              cargo test -- --ignored --nocapture
+          env:
+            - name: DATABASE_URL
+              value: postgres://user:pass@postgres.cti-test.svc.cluster.local:5432/cti
+            - name: NEO4J_URI
+              value: bolt://neo4j.cti-test.svc.cluster.local:7687
+            - name: NEO4J_USER
+              value: neo4j
+            - name: NEO4J_PASSWORD
+              value: secret
+            - name: CTI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cti-api-key-secret
+                  key: api_key
+
+# ----------------------------------------------------------------
+# 3) Python agent‐tests Job
+# ----------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: python-agent-tests
+  namespace: cti-test
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-backend
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- http://cti-backend.cti-test.svc.cluster.local:8080/api/v1/healthz; do
+                echo waiting for backend…; sleep 2;
+              done
+      containers:
+        - name: pytest
+          image: agents:test             # ← build & load with `kind load docker-image agents:test`
+          command:
+            - sh
+            - -c
+            - |
+              cd /app/agents && \
+              pytest -v --maxfail=1
+          env:
+            - name: CTI_BACKEND_URL
+              value: http://cti-backend.cti-test.svc.cluster.local:8080
+            - name: CTI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cti-api-key-secret
+                  key: api_key
