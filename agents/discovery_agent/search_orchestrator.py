@@ -19,6 +19,8 @@ import random
 # Import Google ADK tools for built-in search
 try:
     from google.adk.tools import google_search
+    from google.adk.agents import Agent
+    from google.adk.models import Gemini
     GOOGLE_ADK_AVAILABLE = True
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
@@ -190,12 +192,21 @@ class SearchOrchestrator:
     
     async def search_google_cse(self, query: str, max_results: int = 10) -> List[SearchResult]:
         """Search using Google ADK built-in google_search tool instead of deprecated CSE API."""
+        # First check: Google ADK availability
         if not GOOGLE_ADK_AVAILABLE:
             self.logger.warning("Google ADK not available, skipping Google search")
             return []
         
+        # Second check: Required API keys for Gemini 2 model
+        gemini_api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        if not gemini_api_key:
+            self.logger.warning("Google/Gemini API key not available for Google search, skipping")
+            return []
+        
+        # Third check: Provider configuration
         provider = self.providers.get("google_cse", None)
         if provider and not provider.enabled:
+            self.logger.debug("Google search provider disabled in configuration")
             return []
         
         # Ensure max_results is an integer
@@ -210,16 +221,32 @@ class SearchOrchestrator:
             return []
         
         try:
-            # Use the google_search tool directly - it's a function, not an object with call method
-            search_response = await google_search(
-                query=query,
-                num_results=min(max_results, 10)
-            )
+            # Fast-fail: Attempt to create Agent with google_search tool (requires Gemini 2 model)
+            try:
+                search_agent = Agent(
+                    model='gemini-2.0-flash',
+                    name='SearchAgent',
+                    tools=[google_search]
+                )
+            except Exception as agent_error:
+                self.logger.warning(f"Failed to create Google search agent: {agent_error}")
+                return []
+            
+            # Use the agent to perform the search
+            search_prompt = f"Search for: {query}. Return search results with titles, URLs, and descriptions."
+            search_response = await search_agent.run(search_prompt)
             
             results = []
             
-            # Handle Google ADK search response
-            if hasattr(search_response, 'results'):
+            # Handle Google ADK Agent search response
+            # The Agent response will contain the search results as text or structured data
+            if hasattr(search_response, 'text'):
+                # Parse the agent's text response to extract search results
+                self.logger.debug(f"Agent search response: {search_response.text}")
+                # For now, return empty results as the text would need parsing
+                # TODO: Implement proper text parsing to extract URLs and titles
+                return []
+            elif hasattr(search_response, 'results'):
                 search_results = search_response.results
             elif isinstance(search_response, list):
                 search_results = search_response
@@ -227,6 +254,7 @@ class SearchOrchestrator:
                 search_results = search_response['results']
             else:
                 self.logger.warning(f"Unexpected Google search response format: {type(search_response)}")
+                self.logger.debug(f"Response content: {search_response}")
                 return []
             
             for item in search_results:
