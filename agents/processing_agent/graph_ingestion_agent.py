@@ -9,6 +9,7 @@ import requests  # Needed for HTTPError handling
 import re
 import mitreattack
 import asyncio
+import hashlib
 
 # Flag to check if ADK model functionality is available
 try:
@@ -190,42 +191,91 @@ class GraphIngestionAgent(Agent):
         if 'source_url' in record and 'retrieved_at' in record:
             src = record['source_url']
             ts = record['retrieved_at']
-            # Source node
+            # Create more descriptive IDs
+            import hashlib
+            from urllib.parse import urlparse
+            
+            parsed_url = urlparse(src)
+            domain = parsed_url.netloc or 'unknown'
+            
+            # Source node - include domain name
+            source_id = f"source:{domain}"
             nodes.append({
-                'id': src,
+                'id': source_id,
                 'labels': ['Source'],
-                'properties': {'url': src}
+                'properties': {
+                    'url': src,
+                    'domain': domain,
+                    'name': record.get('source_name', domain)
+                }
             })
-            # SightingEvent node
-            evt_id = f"evt:{src}|{ts}"
+            
+            # SightingEvent node - more descriptive
+            evt_hash = hashlib.md5(f"{src}|{ts}".encode()).hexdigest()[:8]
+            evt_id = f"event:{domain}:{evt_hash}"
             nodes.append({
                 'id': evt_id,
                 'labels': ['SightingEvent'],
-                'properties': {'timestamp': ts}
+                'properties': {
+                    'timestamp': ts,
+                    'source_domain': domain
+                }
             })
-            relationships.append({'source_id': evt_id, 'target_id': src, 'type': 'REPORTED_BY', 'properties': {}})
-            # Article node
-            art_id = src
-            props = {'url': src, 'full_text': record.get('full_text', ''), 'summary': record.get('summary', ''), 'source_name': record.get('source_name', '')}
+            relationships.append({'source_id': evt_id, 'target_id': source_id, 'type': 'REPORTED_BY', 'properties': {}})
+            
+            # Article node - include title if available
+            title = record.get('title', '')
+            title_clean = re.sub(r'[^\w\s-]', '', title)[:50] if title else 'untitled'
+            art_hash = hashlib.md5(src.encode()).hexdigest()[:8]
+            art_id = f"article:{domain}:{title_clean}:{art_hash}" if title_clean != 'untitled' else f"article:{domain}:{art_hash}"
+            
+            props = {
+                'url': src, 
+                'full_text': record.get('full_text', ''), 
+                'summary': record.get('summary', ''), 
+                'source_name': record.get('source_name', ''),
+                'title': title,
+                'domain': domain
+            }
             nodes.append({'id': art_id, 'labels': ['Article'], 'properties': props})
             relationships.append({'source_id': art_id, 'target_id': evt_id, 'type': 'ABOUT', 'properties': {}})
         # MISP records
         elif record.get('source') == 'misp' and 'ioc_record' in record:
             idx = record.get('feed_url', '')
             ts = record.get('fetched_at', '')
-            node_id = f"misp:{idx}|{ts}"
-            nodes.append({'id': node_id, 'labels': ['MispEvent'], 'properties': {'feed_url': idx, 'fetched_at': ts}})
+            
+            # Create descriptive MISP event ID
+            feed_hash = hashlib.md5(idx.encode()).hexdigest()[:8]
+            node_id = f"misp_event:{feed_hash}:{ts}"
+            nodes.append({
+                'id': node_id, 
+                'labels': ['MispEvent'], 
+                'properties': {
+                    'feed_url': idx, 
+                    'fetched_at': ts,
+                    'feed_name': idx.split('/')[-1] if '/' in idx else idx
+                }
+            })
+            
             # IOC node or ThreatActor if APT group
             ioc = record['ioc_record']
-            ioc_id = ioc.get('value', '')
-            if re.match(r'(?i)^APT\d+', ioc_id):
+            ioc_value = ioc.get('value', '')
+            ioc_type = ioc.get('type', 'unknown')
+            
+            if re.match(r'(?i)^APT\d+', ioc_value):
                 # APT group as ThreatActor
-                ta_props = {'name': ioc_id}
+                ta_id = f"threat_actor:{ioc_value.lower()}"
+                ta_props = {'name': ioc_value, 'type': 'apt_group'}
                 ta_props.update(ioc)
-                nodes.append({'id': ioc_id, 'labels': ['ThreatActor'], 'properties': ta_props})
+                nodes.append({'id': ta_id, 'labels': ['ThreatActor'], 'properties': ta_props})
+                relationships.append({'source_id': ta_id, 'target_id': node_id, 'type': 'APPEARED_IN', 'properties': {}})
             else:
-                nodes.append({'id': ioc_id, 'labels': ['Indicator'], 'properties': ioc})
-            relationships.append({'source_id': ioc_id, 'target_id': node_id, 'type': 'APPEARED_IN', 'properties': {}})
+                # Create descriptive indicator ID
+                indicator_id = f"indicator:{ioc_type}:{hashlib.md5(ioc_value.encode()).hexdigest()[:8]}"
+                indicator_props = dict(ioc)
+                indicator_props['indicator_type'] = ioc_type
+                nodes.append({'id': indicator_id, 'labels': ['Indicator'], 'properties': indicator_props})
+                relationships.append({'source_id': indicator_id, 'target_id': node_id, 'type': 'APPEARED_IN', 'properties': {}})
         # TAXII STIX objects and relationships
         elif record.get('source') == 'taxii' and 'stix_object' in record:
             ts = record.get('fetched_at', '')
@@ -240,7 +290,7 @@ class GraphIngestionAgent(Agent):
                 rel_props = {k: v for k, v in obj.items() if k not in ['type', 'id', 'relationship_type', 'source_ref', 'target_ref']}
                 relationships.append({'source_id': src_ref, 'target_id': tgt_ref, 'type': rel_type, 'properties': rel_props})
             else:
-                # Map STIX types to internal labels
+                # Map STIX types to internal labels and create descriptive IDs
                 label_map = {
                     'attack-pattern': 'AttackPattern',
                     'campaign': 'Campaign',
@@ -252,9 +302,113 @@ class GraphIngestionAgent(Agent):
                     'identity': 'Identity',
                 }
                 label = label_map.get(stix_type, stix_type.title().replace('-', ''))
+                
+                # Create more descriptive ID based on content
+                name = obj.get('name', '')
+                if name:
+                    name_clean = re.sub(r'[^\w\s-]', '', name)[:30].replace(' ', '_')
+                    descriptive_id = f"{stix_type}:{name_clean}:{obj_id.split('--')[-1][:8]}"
+                else:
+                    descriptive_id = f"{stix_type}:{obj_id.split('--')[-1][:8]}"
+                
                 props = dict(obj)
                 props['fetched_at'] = ts
-                nodes.append({'id': obj_id, 'labels': [label], 'properties': props})
+                props['stix_id'] = obj_id  # Keep original STIX ID
+                props['entity_type'] = stix_type
+                nodes.append({'id': descriptive_id, 'labels': [label], 'properties': props})
+        # Handle normalized.intel messages from FeedNormalizer
+        elif 'entities' in record and 'relations' in record and 'raw_payload' in record:
+            # This is a normalized message from FeedNormalizer
+            raw_payload = record.get('raw_payload', {})
+            entities = record.get('entities', {})
+            relations = record.get('relations', [])
+            
+            # Create source article node from raw payload
+            source_url = raw_payload.get('source_url', '')
+            if source_url:
+                from urllib.parse import urlparse
+                parsed_url = urlparse(source_url)
+                domain = parsed_url.netloc or 'unknown'
+                
+                # Article node
+                art_id = f"article:{domain}:{hashlib.md5(source_url.encode()).hexdigest()[:8]}"
+                nodes.append({
+                    'id': art_id,
+                    'labels': ['Article'],
+                    'properties': {
+                        'url': source_url,
+                        'title': raw_payload.get('title', ''),
+                        'full_text': raw_payload.get('full_text', ''),
+                        'summary': raw_payload.get('summary', ''),
+                        'domain': domain,
+                        'timestamp': record.get('timestamp', ''),
+                        'language': record.get('language', 'unknown')
+                    }
+                })
+                
+                # Create indicator nodes from extracted entities
+                for entity_type, entity_list in entities.items():
+                    if not isinstance(entity_list, list):
+                        continue
+                        
+                    for entity_value in entity_list:
+                        if not entity_value:
+                            continue
+                            
+                        # Map entity types to proper Neo4j labels
+                        label_map = {
+                            'ip': 'Indicator',
+                            'domain': 'Indicator', 
+                            'url': 'Indicator',
+                            'hash': 'Indicator',
+                            'email': 'Indicator',
+                            'cve': 'Vulnerability',
+                            'threat_actor': 'ThreatActor',
+                            'malware': 'Malware',
+                            'attack_pattern': 'AttackPattern',
+                            'campaign': 'Campaign',
+                            'vulnerability': 'Vulnerability'
+                        }
+                        
+                        label = label_map.get(entity_type, 'Entity')
+                        entity_id = f"{entity_type}:{hashlib.md5(entity_value.encode()).hexdigest()[:12]}"
+                        
+                        nodes.append({
+                            'id': entity_id,
+                            'labels': [label],
+                            'properties': {
+                                'value': entity_value,
+                                'type': entity_type,
+                                'source_article': art_id
+                            }
+                        })
+                        
+                        # Create relationship from article to entity
+                        relationships.append({
+                            'source_id': art_id,
+                            'target_id': entity_id,
+                            'type': 'MENTIONS',
+                            'properties': {'extraction_method': 'dspy'}
+                        })
+                
+                # Process extracted relations
+                for relation in relations:
+                    if isinstance(relation, dict):
+                        source_entity = relation.get('source')
+                        target_entity = relation.get('target') 
+                        relation_type = relation.get('type', 'RELATED_TO')
+                        
+                        if source_entity and target_entity:
+                            # Create relationship between entities
+                            source_id = f"entity:{hashlib.md5(source_entity.encode()).hexdigest()[:12]}"
+                            target_id = f"entity:{hashlib.md5(target_entity.encode()).hexdigest()[:12]}"
+                            
+                            relationships.append({
+                                'source_id': source_id,
+                                'target_id': target_id,
+                                'type': relation_type.upper().replace(' ', '_'),
+                                'properties': {'confidence': relation.get('confidence', 0.5)}
+                            })
         else:
             # Fallback generic node
             gen_id = record.get('id', '') or json.dumps(record)
@@ -283,6 +437,7 @@ class GraphIngestionAgent(Agent):
 
     def _call_ingest_api(self, changeset: dict) -> dict:
         # Relative URL is appended to CTI_BACKEND_URL by AgentHttpClient
+        # CTI_BACKEND_URL should point to /internal to bypass rate limiting
         url = "/v1/graph/ingest"
 
         # AgentHttpClient already adds Authorization header and retry logic
