@@ -26,67 +26,36 @@ except FileNotFoundError:
 except yaml.YAMLError as e:
     print(f"[ContentTools] Error parsing YAML for DSPy config at {DSPY_CONFIG_PATH_ACTUAL}: {e}", file=sys.stderr)
 
-# Configure DSPy LLM
-llm_provider_name = dspy_settings.get("llm_provider", "").lower()
-model_name = dspy_settings.get("model_name", "gemini-pro")
-
-# Handle environment variable expansion for model names
-if llm_provider_name == "mistral":
-    # Check for MISTRAL_MODEL env var, fallback to config value
-    model_name = os.getenv("MISTRAL_MODEL", dspy_settings.get("mistral_model", model_name))
-elif llm_provider_name == "gemini":
-    # Check for GEMINI_MODEL_NAME env var, fallback to config value
-    model_name = os.getenv("GEMINI_MODEL_NAME", dspy_settings.get("gemini_model", model_name))
-elif llm_provider_name == "openai":
-    # Check for OPENAI_MODEL env var, fallback to config value
-    model_name = os.getenv("OPENAI_MODEL", dspy_settings.get("openai_model", model_name))
-
+# Configure DSPy LLM using new simplified API
 configured_lm = None
-# Add Mistral provider support
-if llm_provider_name == "mistral":
-    api_key_env_var_name = dspy_settings.get("api_key_env_var", "MISTRAL_API_KEY")
-    api_key = os.getenv(api_key_env_var_name)
-    model_identifier = f"mistral/{model_name}"
-    if api_key:
+
+# Try Gemini first (primary provider)
+gemini_api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+
+if gemini_api_key:
+    try:
+        configured_lm = dspy.LM(f"gemini/{model_name}", api_key=gemini_api_key)
+        dspy.configure(lm=configured_lm)
+        print(f"[ContentTools] DSPy configured with Gemini: gemini/{model_name}", file=sys.stderr)
+    except Exception as e:
+        print(f"[ContentTools] Error configuring DSPy with Gemini: {e}", file=sys.stderr)
+        configured_lm = None
+
+# Fallback to OpenAI if Gemini fails
+if not configured_lm:
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    if openai_api_key:
         try:
-            configured_lm = dspy.LM(model_identifier, api_key=api_key)
-            dspy.settings.configure(lm=configured_lm)
-            print(f"[ContentTools] DSPy configured with Mistral LLM: {model_identifier}", file=sys.stderr)
+            configured_lm = dspy.LM("openai/gpt-4", api_key=openai_api_key)
+            dspy.configure(lm=configured_lm)
+            print(f"[ContentTools] DSPy configured with OpenAI: gpt-4", file=sys.stderr)
         except Exception as e:
-            print(f"[ContentTools] Error configuring DSPy Mistral LLM ({model_identifier}): {e}", file=sys.stderr)
-    else:
-        print(f"[ContentTools] API key ({api_key_env_var_name}) not found for Mistral LLM. DSPy will not be configured.", file=sys.stderr)
-# OpenAI as option
-elif llm_provider_name == "openai": # Keep OpenAI as an option if specified
-    api_key_env_var_name = dspy_settings.get("api_key_env_var", "OPENAI_API_KEY")
-    api_key = os.getenv(api_key_env_var_name)
-    if api_key:
-        try:
-            configured_lm = dspy.OpenAI(model=model_name, api_key=api_key)
-            dspy.settings.configure(lm=configured_lm)
-            print(f"[ContentTools] DSPy configured with OpenAI model: {model_name}", file=sys.stderr)
-        except Exception as e:
-            print(f"[ContentTools] Error configuring DSPy OpenAI LLM: {e}", file=sys.stderr)
-    else:
-        print(f"[ContentTools] API key ({api_key_env_var_name}) not found for OpenAI LLM. DSPy OpenAI LLM will not be configured.", file=sys.stderr)
-# Google/Gemini
-elif llm_provider_name in ["googlegenerativeai", "google", "gemini"]:
-    api_key_env_var_name = dspy_settings.get("api_key_env_var", "GOOGLE_API_KEY")
-    api_key = os.getenv(api_key_env_var_name)
-    model_identifier = f"gemini/{model_name}"
-    if api_key:
-        try:
-            configured_lm = dspy.LM(model_identifier, api_key=api_key)
-            dspy.settings.configure(lm=configured_lm)
-            print(f"[ContentTools] DSPy configured with Google LLM: {model_identifier}", file=sys.stderr)
-        except Exception as e:
-            print(f"[ContentTools] Error configuring DSPy Google LLM ({model_identifier}): {e}", file=sys.stderr)
-    else:
-        print(f"[ContentTools] API key ({api_key_env_var_name}) not found for Google LLM. DSPy will not be configured.", file=sys.stderr)
-else:
-    if llm_provider_name: # If a provider was named but not matched
-        print(f"[ContentTools] Unsupported LLM provider: {dspy_settings.get('llm_provider')}. DSPy not configured.", file=sys.stderr)
-    # If no provider was named, DSPy remains unconfigured, and predictor will use placeholder.
+            print(f"[ContentTools] Error configuring DSPy with OpenAI: {e}", file=sys.stderr)
+            configured_lm = None
+
+if not configured_lm:
+    print(f"[ContentTools] No valid API keys found for DSPy. DSPy will not be configured.", file=sys.stderr)
 
 # Few-shot examples for PageTypeSignature
 page_type_examples = [

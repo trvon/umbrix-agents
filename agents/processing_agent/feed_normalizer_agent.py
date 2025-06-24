@@ -207,7 +207,13 @@ class FeedNormalizationAgent(Agent):
     def _extract_with_retry(self, text: str) -> dict:
         """Extracts entities and relations with retry logic."""
         print(f"[NORMALIZER] Attempting extraction for text snippet: '{text[:50]}...'", file=sys.stderr)
-        return self.extractor.extract(text=text)
+        try:
+            result = self.extractor.extract(text=text)
+            print(f"[NORMALIZER] Extractor returned: {type(result)}", file=sys.stderr)
+            return result
+        except Exception as e:
+            print(f"[NORMALIZER] Extractor error: {e}", file=sys.stderr)
+            raise
 
     def run(self):
         print(f"[NORMALIZER] Listening on topic '{self.input_topic}'", file=sys.stderr)
@@ -223,7 +229,22 @@ class FeedNormalizationAgent(Agent):
 
     def _process_message(self, msg):
         raw = msg.value
-        text = raw.get('full_text') or raw.get('content') or ''
+        # Check various possible text fields
+        raw_content_str = raw.get('raw_content') if isinstance(raw.get('raw_content'), str) else ''
+        raw_content_article = raw.get('raw_content', {}).get('article_text', '') if isinstance(raw.get('raw_content'), dict) else ''
+        
+        # Check for extracted text in metadata (from RSS collector ArticleExtractorTool)
+        metadata_extracted_text = ''
+        if 'metadata' in raw and isinstance(raw['metadata'], dict):
+            metadata_extracted_text = raw['metadata'].get('extracted_clean_text', '')
+        
+        text = (raw.get('full_text') or 
+                raw.get('content') or 
+                raw.get('article_text') or 
+                raw.get('description') or 
+                metadata_extracted_text or
+                raw_content_str or
+                raw_content_article)
         
         lang = 'unknown'
         if text: # Only attempt language detection if there's text
@@ -248,11 +269,15 @@ class FeedNormalizationAgent(Agent):
         
         extracted_data = {'entities': {}, 'relations': []} # Default if extraction fails or text_en is empty
         if text_en: # Only attempt extraction if there's text (original or translated)
+            print(f"[NORMALIZER] Text found ({len(text_en)} chars), attempting extraction...", file=sys.stderr)
             try:
                 extracted_data = self._extract_with_retry(text=text_en)
+                print(f"[NORMALIZER] Extraction completed: {list(extracted_data.get('entities', {}).keys())}", file=sys.stderr)
             except Exception as e: # Catch if all retries failed
                 print(f"[NORMALIZER] Extraction permanently failed for text after retries: {e}. Proceeding with empty entities/relations.", file=sys.stderr)
                 # extracted_data remains the default
+        else:
+            print(f"[NORMALIZER] No text found for extraction", file=sys.stderr)
 
         # Normalize timestamp - check multiple possible timestamp fields
         original_timestamp = raw.get('retrieved_at') or raw.get('timestamp') or raw.get('discovered_at') or raw.get('published_at')

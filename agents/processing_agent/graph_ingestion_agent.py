@@ -187,12 +187,15 @@ class GraphIngestionAgent(Agent):
     def _transform(self, record: dict) -> dict:
         nodes = []
         relationships = []
+        
+        # Debug logging to understand message structure
+        print(f"[GraphIngestion] Processing record with keys: {list(record.keys())[:10]}", file=sys.stderr)
+        
         # RSS-style records
         if 'source_url' in record and 'retrieved_at' in record:
             src = record['source_url']
             ts = record['retrieved_at']
             # Create more descriptive IDs
-            import hashlib
             from urllib.parse import urlparse
             
             parsed_url = urlparse(src)
@@ -319,12 +322,17 @@ class GraphIngestionAgent(Agent):
         # Handle normalized.intel messages from FeedNormalizer
         elif 'entities' in record and 'relations' in record and 'raw_payload' in record:
             # This is a normalized message from FeedNormalizer
+            print(f"[GraphIngestion] Processing normalized.intel message", file=sys.stderr)
             raw_payload = record.get('raw_payload', {})
             entities = record.get('entities', {})
             relations = record.get('relations', [])
             
-            # Create source article node from raw payload
-            source_url = raw_payload.get('source_url', '')
+            # Get source URL from various possible locations
+            source_url = (raw_payload.get('source_url', '') or 
+                         raw_payload.get('url', '') or 
+                         raw_payload.get('link', '') or
+                         record.get('id', ''))
+            
             if source_url:
                 from urllib.parse import urlparse
                 parsed_url = urlparse(source_url)
@@ -409,6 +417,64 @@ class GraphIngestionAgent(Agent):
                                 'type': relation_type.upper().replace(' ', '_'),
                                 'properties': {'confidence': relation.get('confidence', 0.5)}
                             })
+            else:
+                # No source URL, but still process entities from normalized message
+                print(f"[GraphIngestion] No source URL found in normalized message, processing entities only", file=sys.stderr)
+                
+                # Create a generic source node
+                source_id = f"normalized:{hashlib.md5(str(record).encode()).hexdigest()[:12]}"
+                nodes.append({
+                    'id': source_id,
+                    'labels': ['NormalizedIntel'],
+                    'properties': {
+                        'timestamp': record.get('timestamp', ''),
+                        'language': record.get('language', 'unknown'),
+                        'source_type': record.get('source_type', 'unknown')
+                    }
+                })
+                
+                # Still process all entities
+                for entity_type, entity_list in entities.items():
+                    if not isinstance(entity_list, list):
+                        continue
+                        
+                    for entity_value in entity_list:
+                        if not entity_value:
+                            continue
+                            
+                        label_map = {
+                            'ip': 'Indicator',
+                            'domain': 'Indicator', 
+                            'url': 'Indicator',
+                            'hash': 'Indicator',
+                            'email': 'Indicator',
+                            'cve': 'Vulnerability',
+                            'threat_actor': 'ThreatActor',
+                            'malware': 'Malware',
+                            'attack_pattern': 'AttackPattern',
+                            'campaign': 'Campaign',
+                            'vulnerability': 'Vulnerability'
+                        }
+                        
+                        label = label_map.get(entity_type, 'Entity')
+                        entity_id = f"{entity_type}:{hashlib.md5(entity_value.encode()).hexdigest()[:12]}"
+                        
+                        nodes.append({
+                            'id': entity_id,
+                            'labels': [label],
+                            'properties': {
+                                'value': entity_value,
+                                'type': entity_type,
+                                'source': source_id
+                            }
+                        })
+                        
+                        relationships.append({
+                            'source_id': source_id,
+                            'target_id': entity_id,
+                            'type': 'CONTAINS',
+                            'properties': {'extraction_method': 'dspy'}
+                        })
         else:
             # Fallback generic node
             gen_id = record.get('id', '') or json.dumps(record)

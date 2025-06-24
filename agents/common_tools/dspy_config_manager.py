@@ -21,19 +21,6 @@ except ImportError:
     DSPY_AVAILABLE = False
 
 try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
-try:
-    import google.generativeai as genai
-    from dspy import GoogleGenerativeAI
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
-try:
     from mistralai.client import MistralClient
     from .mistral_dspy_provider import MistralDSPyProvider
     MISTRAL_AVAILABLE = True
@@ -228,7 +215,7 @@ class DSPyConfigManager:
     
     def create_openai_provider(self, model_type: str = 'primary') -> Optional[object]:
         """
-        Create OpenAI DSPy provider.
+        Create OpenAI DSPy provider using new DSPy API.
         
         Args:
             model_type: Model type to use
@@ -236,8 +223,8 @@ class DSPyConfigManager:
         Returns:
             Configured OpenAI provider or None if not available
         """
-        if not OPENAI_AVAILABLE:
-            logger.warning("OpenAI not available - package not installed")
+        if not DSPY_AVAILABLE:
+            logger.warning("DSPy not available - package not installed")
             return None
         
         api_keys = self.get_api_keys()
@@ -247,18 +234,17 @@ class DSPyConfigManager:
         
         try:
             model_config = self.get_model_config('openai', model_type)
+            model_name = model_config['model']
             
-            # Import DSPy OpenAI provider
-            from dspy import OpenAI
-            
-            provider = OpenAI(
-                model=model_config['model'],
+            # Use new DSPy LM API
+            provider = dspy.LM(
+                f"openai/{model_name}",
                 api_key=api_keys['openai'],
-                temperature=model_config['temperature'],
-                max_tokens=model_config['max_tokens']
+                temperature=model_config.get('temperature', 0.2),
+                max_tokens=model_config.get('max_tokens', 2048)
             )
             
-            logger.info(f"Created OpenAI provider with model {model_config['model']}")
+            logger.info(f"Created OpenAI provider with model {model_name}")
             return provider
             
         except Exception as e:
@@ -267,7 +253,7 @@ class DSPyConfigManager:
     
     def create_gemini_provider(self, model_type: str = 'primary') -> Optional[object]:
         """
-        Create Gemini DSPy provider.
+        Create Gemini DSPy provider using new DSPy API.
         
         Args:
             model_type: Model type to use
@@ -275,8 +261,8 @@ class DSPyConfigManager:
         Returns:
             Configured Gemini provider or None if not available
         """
-        if not GEMINI_AVAILABLE:
-            logger.warning("Gemini not available - package not installed")
+        if not DSPY_AVAILABLE:
+            logger.warning("DSPy not available - package not installed")
             return None
         
         api_keys = self.get_api_keys()
@@ -286,18 +272,17 @@ class DSPyConfigManager:
         
         try:
             model_config = self.get_model_config('gemini', model_type)
+            model_name = model_config['model']
             
-            # Configure Gemini
-            genai.configure(api_key=api_keys['gemini'])
-            
-            # Create DSPy Gemini provider
-            provider = GoogleGenerativeAI(
-                model=model_config['model'],
-                temperature=model_config['temperature'],
-                max_output_tokens=model_config['max_output_tokens']
+            # Use new DSPy LM API
+            provider = dspy.LM(
+                f"gemini/{model_name}",
+                api_key=api_keys['gemini'],
+                temperature=model_config.get('temperature', 0.2),
+                max_tokens=model_config.get('max_output_tokens', 2048)
             )
             
-            logger.info(f"Created Gemini provider with model {model_config['model']}")
+            logger.info(f"Created Gemini provider with model {model_name}")
             return provider
             
         except Exception as e:
@@ -436,8 +421,6 @@ class DSPyConfigManager:
             'provider': self.current_provider,
             'model': self.current_model,
             'dspy_available': DSPY_AVAILABLE,
-            'openai_available': OPENAI_AVAILABLE,
-            'gemini_available': GEMINI_AVAILABLE,
             'mistral_available': MISTRAL_AVAILABLE,
             'api_keys_present': {
                 'openai': bool(self.get_api_keys()['openai']),

@@ -51,12 +51,15 @@ except ImportError as e:
 
 try:
     from discovery_agent.feed_seeder_agent import FeedSeederAgent  # Moved to discovery_agent
+    print(f"Successfully imported FeedSeederAgent from discovery_agent", file=sys.stderr)
 except ImportError as e:
-    print(f"Warning: Could not import FeedSeederAgent: {e}", file=sys.stderr)
+    print(f"Warning: Could not import FeedSeederAgent from discovery_agent: {e}", file=sys.stderr)
     # Use the collector agent version
     try:
         from collector_agent.feed_seeder_agent import FeedSeederAgent
-    except ImportError:
+        print(f"Successfully imported FeedSeederAgent from collector_agent", file=sys.stderr)
+    except ImportError as e2:
+        print(f"Warning: Could not import FeedSeederAgent from collector_agent either: {e2}", file=sys.stderr)
         FeedSeederAgent = None
 
 try:
@@ -274,6 +277,15 @@ class CTIMasterCoordinatorAgent(Agent):
             if IntelligentCrawlerAgent:
                 agent_classes['discovery_agent.intelligent_crawler_agent.IntelligentCrawlerAgent'] = IntelligentCrawlerAgent
             
+            if FeedSeederAgent:
+                # Add both paths for FeedSeederAgent since it might be in either location
+                agent_classes['discovery_agent.feed_seeder_agent.FeedSeederAgent'] = FeedSeederAgent
+                print(f"DEBUG: Added FeedSeederAgent to agent_classes", file=sys.stderr)
+            else:
+                print(f"DEBUG: FeedSeederAgent is None, not adding to agent_classes", file=sys.stderr)
+            
+            print(f"DEBUG: Available agent classes: {list(agent_classes.keys())}", file=sys.stderr)
+            
             # Process agent configurations
             for agent_config in config.get('agents', []):
                 if not agent_config.get('enabled', False):
@@ -321,12 +333,15 @@ class CTIMasterCoordinatorAgent(Agent):
                 except Exception as e:
                     self.logger.error(f"Failed to start agent {agent_name}: {e}")
             
-            # Seed feeds if we have a FeedSeeder
-            if 'FeedSeeder' in self.agent_registry:
-                self._seed_initial_feeds(config)
+            # Seed feeds from config regardless of FeedSeeder presence
+            self.logger.info("About to seed feeds from config")
+            self._seed_initial_feeds(config)
+            self.logger.info("Feed seeding completed")
                 
         except Exception as e:
             self.logger.error(f"Failed to load agents: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _substitute_env_vars(self, obj):
         """Recursively substitute environment variables in configuration."""
@@ -376,8 +391,13 @@ class CTIMasterCoordinatorAgent(Agent):
     def _seed_initial_feeds(self, config):
         """Seed initial feeds into the feeds.discovered topic."""
         try:
+            self.logger.info("Starting feed seeding process")
             feeds = config.get('feeds', [])
-            if not feeds or not self.producer:
+            if not feeds:
+                self.logger.warning("No feeds found in config")
+                return
+            if not self.producer:
+                self.logger.warning("No Kafka producer available for seeding")
                 return
             
             self.logger.info(f"Seeding {len(feeds)} initial feeds")
