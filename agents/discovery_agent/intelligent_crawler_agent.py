@@ -63,7 +63,7 @@ class IntelligentCrawlerAgent(Agent):
     - Publishes extracted content to output Kafka topic
     """
     
-    # Permit extra constructor parameters when using Pydantic-based Agent
+    # Configuration for Pydantic-based Agent  
     class Config:
         extra = "allow"
     
@@ -271,55 +271,27 @@ class IntelligentCrawlerAgent(Agent):
         try:
             self.metrics['llm_calls'].labels(status='started').inc()
             
-            # Handle async generator from generate_content_async
-            import inspect
-            
+            # Simplified response handling for Google ADK Gemini
             try:
-                response_generator = self.llm.generate_content_async(prompt)
+                response = await self.llm.generate_content_async(prompt)
                 
-                # Check if it's directly an async generator
-                if inspect.isasyncgen(response_generator):
-                    # Handle async generator - collect all chunks
-                    full_response = ""
-                    async for chunk in response_generator:
-                        if hasattr(chunk, 'text'):
-                            full_response += chunk.text
-                        elif hasattr(chunk, 'content'):
-                            full_response += chunk.content
-                        else:
-                            full_response += str(chunk)
-                    response_text = full_response
+                # Extract text from response - Google ADK typically returns simple response object
+                if hasattr(response, 'text'):
+                    response_text = response.text
+                elif hasattr(response, 'content'):
+                    response_text = response.content
+                elif hasattr(response, 'candidates') and response.candidates:
+                    # Handle candidates structure if present
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content'):
+                        response_text = candidate.content.parts[0].text if candidate.content.parts else str(candidate.content)
+                    else:
+                        response_text = str(candidate)
                 else:
-                    # Try to await it first in case it returns a coroutine that yields an async generator
-                    try:
-                        awaited_result = await response_generator
-                        if inspect.isasyncgen(awaited_result):
-                            # Handle async generator from awaited result
-                            full_response = ""
-                            async for chunk in awaited_result:
-                                if hasattr(chunk, 'text'):
-                                    full_response += chunk.text
-                                elif hasattr(chunk, 'content'):
-                                    full_response += chunk.content
-                                else:
-                                    full_response += str(chunk)
-                            response_text = full_response
-                        elif hasattr(awaited_result, 'text'):
-                            response_text = awaited_result.text
-                        elif hasattr(awaited_result, 'content'):
-                            response_text = awaited_result.content
-                        else:
-                            response_text = str(awaited_result)
-                    except TypeError:
-                        # Not awaitable, treat as synchronous
-                        if hasattr(response_generator, 'text'):
-                            response_text = response_generator.text
-                        elif hasattr(response_generator, 'content'):
-                            response_text = response_generator.content
-                        else:
-                            response_text = str(response_generator)
-            except Exception as async_error:
-                self.logger.error(f"Error handling async response: {async_error}")
+                    response_text = str(response)
+                    
+            except Exception as llm_error:
+                self.logger.error(f"Error generating queries with LLM: {llm_error}")
                 response_text = "Error generating queries"
             
             queries = [q.strip() for q in response_text.split('\n') if q.strip()]

@@ -15,6 +15,13 @@ from urllib.parse import quote_plus
 import os
 from functools import wraps
 import random
+
+# Import Google ADK tools for built-in search
+try:
+    from google.adk.tools import google_search
+    GOOGLE_ADK_AVAILABLE = True
+except ImportError:
+    GOOGLE_ADK_AVAILABLE = False
 # from common_tools.retry_framework import retry_with_policy
 # Temporary simple retry decorator
 def retry_with_policy(max_attempts=3, delay=1):
@@ -182,9 +189,13 @@ class SearchOrchestrator:
             return []
     
     async def search_google_cse(self, query: str, max_results: int = 10) -> List[SearchResult]:
-        """Search using Google Custom Search Engine API with rate limiting and retry logic."""
-        provider = self.providers["google_cse"]
-        if not provider.enabled:
+        """Search using Google ADK built-in google_search tool instead of deprecated CSE API."""
+        if not GOOGLE_ADK_AVAILABLE:
+            self.logger.warning("Google ADK not available, skipping Google search")
+            return []
+        
+        provider = self.providers.get("google_cse", None)
+        if provider and not provider.enabled:
             return []
         
         # Ensure max_results is an integer
@@ -193,50 +204,60 @@ class SearchOrchestrator:
         except (ValueError, TypeError):
             max_results = 10
         
-        # Check rate limits
-        if not self._check_rate_limit(provider):
-            self.logger.warning(f"Rate limit exceeded for {provider.name}, skipping search")
+        # Check rate limits if provider is configured
+        if provider and not self._check_rate_limit(provider):
+            self.logger.warning(f"Rate limit exceeded for Google search, skipping")
             return []
         
-        async def _search():
-            params = {
-                "key": provider.api_key,
-                "cx": os.getenv("GOOGLE_CSE_ID"),  # Custom Search Engine ID
-                "q": query,
-                "num": min(max_results, 10),  # Google CSE limit
-                "dateRestrict": "y1"  # Past year
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(provider.base_url, params=params, timeout=30) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        results = []
-                        
-                        for item in data.get("items", []):
-                            results.append(SearchResult(
-                                title=item.get("title", ""),
-                                url=item.get("link", ""),
-                                snippet=item.get("snippet", ""),
-                                provider="google_cse"
-                            ))
-                        
-                        self.logger.info(f"Google CSE search for '{query}' returned {len(results)} results")
-                        return results
-                    else:
-                        self.logger.error(f"Google CSE search failed with status {response.status}")
-                        raise aiohttp.ClientResponseError(
-                            None, None, status=response.status, message=f"HTTP {response.status}"
-                        )
-        
         try:
-            # Standardized retry for external APIs
-            decorated_search = retry_with_policy(max_attempts=3, delay=2)(_search)
-            results = await decorated_search()
-            self._update_rate_limit(provider)
+            # Use the google_search tool directly - it's a function, not an object with call method
+            search_response = await google_search(
+                query=query,
+                num_results=min(max_results, 10)
+            )
+            
+            results = []
+            
+            # Handle Google ADK search response
+            if hasattr(search_response, 'results'):
+                search_results = search_response.results
+            elif isinstance(search_response, list):
+                search_results = search_response
+            elif isinstance(search_response, dict) and 'results' in search_response:
+                search_results = search_response['results']
+            else:
+                self.logger.warning(f"Unexpected Google search response format: {type(search_response)}")
+                return []
+            
+            for item in search_results:
+                if isinstance(item, dict):
+                    title = item.get('title', item.get('name', ''))
+                    url = item.get('url', item.get('link', ''))
+                    snippet = item.get('snippet', item.get('description', ''))
+                else:
+                    # Handle object-like response
+                    title = getattr(item, 'title', getattr(item, 'name', ''))
+                    url = getattr(item, 'url', getattr(item, 'link', ''))
+                    snippet = getattr(item, 'snippet', getattr(item, 'description', ''))
+                
+                if url:  # Only add if we have a valid URL
+                    results.append(SearchResult(
+                        title=title,
+                        url=url,
+                        snippet=snippet,
+                        provider="google_adk"
+                    ))
+            
+            self.logger.info(f"Google ADK search for '{query}' returned {len(results)} results")
+            
+            # Update rate limit if provider is configured
+            if provider:
+                self._update_rate_limit(provider)
+            
             return results
+            
         except Exception as e:
-            self.logger.error(f"Error in Google CSE search after retries: {e}")
+            self.logger.error(f"Error in Google ADK search: {e}")
             return []
     
     async def search_duckduckgo(self, query: str, max_results: int = 10) -> List[SearchResult]:

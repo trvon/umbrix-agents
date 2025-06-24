@@ -416,7 +416,7 @@ class RssCollectorAgent(Agent):
         
         # Log agent configuration
         self.logger.info(
-            "RSS Collector Agent initialized",
+            "RSS Collector Agent initialized CLAUDE-DEBUG-VERSION",
             extra_fields={
                 "event_type": "agent_initialized",
                 "item_processing_delay": self.item_processing_delay,
@@ -460,7 +460,7 @@ class RssCollectorAgent(Agent):
             print(f"[RSS] CRITICAL: Failed to publish error to Kafka topic {self.agent_errors_topic}: {e}", file=sys.stderr)
 
     def run(self):
-        print(f"[RSS] Listening for feed URLs on topic '{self.topic}'", file=sys.stderr)
+        print(f"[RSS] CLAUDE-DEBUG: Listening for feed URLs on topic '{self.topic}'", file=sys.stderr)
         for msg_val_outer in self.consumer:
             consumed_message = msg_val_outer.value # This is a dictionary deserialized from FeedRecord JSON or a plain string
 
@@ -535,14 +535,22 @@ class RssCollectorAgent(Agent):
                 )
                 continue
             print(f"[RSS] Retrieved {len(entries)} entries from {feed_url_from_kafka}", file=sys.stderr)
+            print(f"[RSS] DEBUG: About to increment counter and process entries", file=sys.stderr)
             ENTRIES_RETRIEVED_COUNTER.inc(len(entries))
 
+            print(f"[RSS] Starting to process {len(entries)} entries from {feed_url_from_kafka}", file=sys.stderr)
             for entry in entries:
                 guid = entry.get('id') or entry.get('link') or entry.get('guid')
                 
+                # Debug: Log entry processing
+                print(f"[RSS] Processing entry: guid={guid}, link={entry.get('link')}", file=sys.stderr)
+                
                 # Deduplicate using Redis: skip if already seen
                 dedupe_key = f"dedupe:{guid}"
-                if not self.dedupe_store.set_if_not_exists(dedupe_key, DEDUP_TTL_SECONDS):
+                is_new = self.dedupe_store.set_if_not_exists(dedupe_key, DEDUP_TTL_SECONDS)
+                print(f"[RSS] Dedup check for {guid}: is_new={is_new}", file=sys.stderr)
+                if not is_new:
+                    print(f"[RSS] Skipping duplicate entry: {guid}", file=sys.stderr)
                     continue
                 
                 entry_link_str = entry.get('link')

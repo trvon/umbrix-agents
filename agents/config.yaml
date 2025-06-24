@@ -249,16 +249,16 @@ agents:
   - name: "RssFeedDiscoverer"
     module: "collector_agent.rss_discovery_agent"
     class: "RssDiscoveryAgent"
-    enabled: false  # Disabled - master coordinator handles feed seeding
+    enabled: true  # Disabled - master coordinator handles feed seeding
     execution_mode: "run_once"
     params:
       kafka_bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
       topic: "feeds.discovered"
 
   - name: "FeedSeeder"
-    module: "collector_agent.feed_seeder_agent"
+    module: "discovery_agent.feed_seeder_agent"
     class: "FeedSeederAgent"
-    enabled: false  # Disabled - master coordinator handles feed seeding
+    enabled: true  # Enable to populate feeds.discovered topic
     execution_mode: "run_once"
     params:
       kafka_bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
@@ -270,10 +270,13 @@ agents:
     enabled: true
     execution_mode: "event_driven_kafka"
     params:
-      topics: "${GRAPH_INGESTER_TOPICS}"
+      topics: 
+        - "raw.intel"
+        - "raw.intel.taxii"
+        - "raw.intel.misp"
       bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
       backend_url: "${CTI_BACKEND_URL}"
-      enrich_with_llm: false           # toggle LLM-based enrichment
+      enrich_with_llm: true           # toggle LLM-based enrichment
       gemini_model: "${GEMINI_MODEL_NAME}"   # override LLM model name via env
       gemini_api_key: "${GOOGLE_API_KEY}"    # env var for API key
 
